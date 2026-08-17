@@ -1,0 +1,6 @@
+* text=auto
+*.java text diff=java
+*.xml text
+*.kt text diff=kotlin
+*.gradle text
+gradlew text eol=lf
