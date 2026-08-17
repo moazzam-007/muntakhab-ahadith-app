@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.moazzam.muntakhabahadith'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.moazzam.muntakhabahadith"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Prevent packaging conflicts from Kotlin libraries pulled in transitively
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+dependencies {
+    // AndroidX Core
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.activity:activity:1.9.0'
+
+    // Room – local database for section progress and imported PDFs
+    implementation 'androidx.room:room-runtime:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+
+    // PDF Viewer – pinned to a known-working stable version
+    // Library: io.github.afreakyelf:Pdf-Viewer
+    // GitHub : https://github.com/afreakyelf/Pdf-Viewer
+    // Note   : This Kotlin library is called from Java; all public APIs are accessible via JVM interop.
+    implementation 'io.github.afreakyelf:Pdf-Viewer:2.1.1'
+
+    // Unit tests
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}

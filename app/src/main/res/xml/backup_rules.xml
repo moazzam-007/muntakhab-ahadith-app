@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="database" path="muntakhab_ahadith.db" />
+    <include domain="database" path="muntakhab_ahadith.db-shm" />
+    <include domain="database" path="muntakhab_ahadith.db-wal" />
+    <include domain="sharedpref" path="." />
+    <!-- Do NOT backup the cache (it contains the extracted 28MB PDF) -->
+    <exclude domain="cache" path="." />
+</full-backup-content>

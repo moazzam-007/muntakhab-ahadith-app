@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Muntakhab Ahadith</string>
+
+    <!-- Section titles -->
+    <string name="section_kalimah">Kalimah Tayyibah</string>
+    <string name="section_salah">Salah</string>
+    <string name="section_ilm_zikr">Ilm and Zikr</string>
+    <string name="section_ikram">Ikram-e-Muslim</string>
+    <string name="section_ikhlas">Ikhlas-e-Niyyat</string>
+    <string name="section_dawat">Dawat wa Tabligh</string>
+
+    <!-- Home screen labels -->
+    <string name="title_continue_reading">Continue Reading</string>
+    <string name="title_your_progress">Your Progress</string>
+    <string name="title_six_qualities">Six Qualities</string>
+    <string name="title_pdf_library">PDF Library</string>
+    <string name="page_label">Page %1$d</string>
+    <string name="btn_continue">Continue</string>
+    <string name="btn_pdf_library">PDF Library</string>
+
+    <!-- Reader screen -->
+    <string name="loading_pdf">Loading…</string>
+    <string name="last_seen_saved">Last seen position saved.</string>
+    <string name="btn_save_last_seen">Save Last Seen</string>
+    <string name="btn_start_beginning">Start from Beginning</string>
+    <!-- Args: 1=absolutePage, 2=totalPages, 3=sectionPage, 4=sectionTotal, 5=percent -->
+    <string name="page_indicator">Page %1$d of %2$d  •  Section %3$d/%4$d  •  %5$d%%</string>
+    <!-- Args: 1=page, 2=total -->
+    <string name="page_of">Page %1$d of %2$d</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_continue_title">Continue Reading?</string>
+    <!-- Arg: 1=page number (1-based) -->
+    <string name="dialog_continue_message">You were on page %1$d. Continue from there?</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_start_beginning">Start from Beginning</string>
+    <string name="dialog_delete_title">Delete PDF</string>
+    <!-- Arg: 1=PDF name -->
+    <string name="dialog_delete_message">Remove \"%1$s\" from your library?</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="dialog_reset_title">Reset Progress</string>
+    <string name="dialog_reset_all_message">This will reset reading progress for all six sections and the Continue Reading position. This cannot be undone.</string>
+    <string name="dialog_reset_imported_message">This will remove all imported PDFs from your library. Your original files will not be deleted. This cannot be undone.</string>
+    <string name="action_reset">Reset</string>
+
+    <!-- PDF Library -->
+    <string name="no_pdfs_added">No PDFs Added\n\nTap + to import a PDF from your device.</string>
+    <string name="add_pdf">Add PDF</string>
+    <!-- Arg: 1=page number (1-based) -->
+    <string name="last_seen_page">Last seen: Page %1$d</string>
+
+    <!-- Settings -->
+    <string name="title_settings">Settings</string>
+    <string name="title_about">About</string>
+    <!-- Arg: 1=version string -->
+    <string name="version_name">Version %1$s</string>
+    <string name="btn_reset_all_progress">Reset Muntakhab Ahadith Progress</string>
+    <string name="btn_reset_imported">Reset Imported PDF Library</string>
+    <string name="progress_reset_done">Progress reset successfully.</string>
+    <string name="imported_pdfs_cleared">Imported PDF library cleared.</string>
+
+    <!-- Error messages -->
+    <string name="error_invalid_section">Invalid section. Please go back and try again.</string>
+    <string name="error_pdf_title">Cannot Open PDF</string>
+    <!-- Arg: 1=error message -->
+    <string name="error_pdf_message">Error loading PDF: %1$s</string>
+    <string name="error_pdf_inaccessible">This PDF is no longer accessible. Please import it again.</string>
+    <string name="error_pdf_not_found">PDF record not found.</string>
+
+    <!-- Options menu -->
+    <string name="action_settings">Settings</string>
+
+    <!-- Accessibility content descriptions -->
+    <!-- Args: 1=section title, 2=percent -->
+    <string name="cd_section_progress">Reading progress for %1$s: %2$d percent</string>
+    <!-- Args: 1=section title, 2=page number -->
+    <string name="cd_continue_reading">Continue reading %1$s from page %2$d</string>
+    <!-- Arg: 1=PDF name -->
+    <string name="cd_delete_pdf">Delete %1$s from library</string>
+</resources>

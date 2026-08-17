@@ -1,0 +1,32 @@
+# Android
+.gradle/
+local.properties
+.idea/
+*.iml
+*.hprof
+.DS_Store
+
+# Build outputs
+build/
+app/build/
+
+# Generated APKs and AABs
+*.apk
+*.aab
+
+# Signing keys – never commit
+*.jks
+*.keystore
+*.p12
+
+# Android Studio
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Gradle wrapper JAR (kept intentionally – required for CI)
+# If using Git LFS for the PDF, add the tracking config here too.
+
+# OS
+Thumbs.db
+ehthumbs.db

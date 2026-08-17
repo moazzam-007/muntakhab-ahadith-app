@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Strip library-injected permissions -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+
+    <!--
+        No INTERNET permission – the app is entirely offline.
+        No broad STORAGE permissions – imported PDFs use Android's Storage Access Framework.
+    -->
+
+    <application
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@android:mipmap/sym_def_app_icon"
+        android:label="@string/app_name"
+        android:roundIcon="@android:mipmap/sym_def_app_icon"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MuntakhabAhadith">
+
+        <!-- Home screen -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- PDF reader for the six main Muntakhab Ahadith sections -->
+        <activity
+            android:name=".ui.SectionReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- User's imported PDF library list -->
+        <activity
+            android:name=".ui.PdfLibraryActivity"
+            android:exported="false" />
+
+        <!-- PDF reader for user-imported PDFs -->
+        <activity
+            android:name=".ui.ImportedPdfReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- Settings screen -->
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>

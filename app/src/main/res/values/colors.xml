@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary brand – calm green, appropriate for Islamic reading content -->
+    <color name="primary">#2E7D32</color>
+    <color name="primary_dark">#1B5E20</color>
+    <color name="primary_light">#A5D6A7</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- Surfaces -->
+    <color name="background">#F5F5F0</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F1F8E9</color>
+
+    <!-- Continue Reading card background (soft green tint) -->
+    <color name="card_continue">#E8F5E9</color>
+
+    <!-- Text -->
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#555555</color>
+    <color name="text_hint">#888888</color>
+    <color name="error_red">#D32F2F</color>
+
+    <!-- Progress bar fill -->
+    <color name="progress_color">#2E7D32</color>
+    <color name="progress_track">#C8E6C9</color>
+
+    <!-- Status bar -->
+    <color name="status_bar">#1B5E20</color>
+
+    <!-- Divider -->
+    <color name="divider">#E0E0E0</color>
+</resources>
