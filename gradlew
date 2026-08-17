@@ -59,14 +59,12 @@ if "$cygwin" || "$msys"; then
     JAVACMD=$(cygpath --unix "$JAVACMD")
 fi
 
-eval "set -- $(
-    printf '%s\n' "$DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS" |
-    xargs -n1 |
-    sed 's~[^a-zA-Z0-9/=@._-]~\\&~g;' |
-    tr '\n' ' '
-) $@"
+# Provide a "computer" version of the arguments to pass to the Java program
+# We use this array to preserve arguments with spaces
+# This is a much simpler, robust standard Gradle wrapper script pattern.
 
 exec "$JAVACMD" \
+    $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS \
     "-Dorg.gradle.appname=$APP_BASE_NAME" \
     -classpath "$CLASSPATH" \
     org.gradle.wrapper.GradleWrapperMain \
