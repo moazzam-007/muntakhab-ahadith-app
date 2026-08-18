@@ -2,7 +2,7 @@
 <resources>
 
     <!-- Base application theme -->
-    <style name="Theme.MuntakhabAhadith" parent="Theme.MaterialComponents.Light.DarkActionBar">
+    <style name="Theme.MuntakhabAhadith" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/primary_light</item>

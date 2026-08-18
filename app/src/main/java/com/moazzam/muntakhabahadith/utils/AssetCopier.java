@@ -31,7 +31,9 @@ public class AssetCopier {
             out.flush();
         }
         
-        tempFile.renameTo(cachedFile);
+        if (!tempFile.renameTo(cachedFile)) {
+            throw new Exception("Failed to rename temporary asset file to cache file");
+        }
         return cachedFile;
     }
 }
