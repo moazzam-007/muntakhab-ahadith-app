@@ -27,9 +27,7 @@ public interface SectionProgressDao {
     @Query("SELECT * FROM section_progress")
     List<SectionProgress> getAllProgress();
 
-    /** Deletes the progress record for a single section. */
-    @Query("DELETE FROM section_progress WHERE sectionId = :sectionId")
-    void deleteProgress(String sectionId);
+
 
     /** Deletes all six section progress records. */
     @Query("DELETE FROM section_progress")

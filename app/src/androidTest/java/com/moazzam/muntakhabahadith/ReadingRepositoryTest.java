@@ -26,41 +26,30 @@ public class ReadingRepositoryTest {
         Context context = ApplicationProvider.getApplicationContext();
         repository = ReadingRepository.getInstance(context);
         // Clear all before tests
-        repository.resetAllProgress();
-        repository.deleteAllImportedPdfs();
+        try {
+            repository.resetAllProgress().get();
+            repository.deleteAllImportedPdfs().get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Test
-    public void testSaveAndGetPosition() throws InterruptedException {
-        repository.savePosition("kalimah_tayyibah", 50);
+    public void testSaveAndGetPosition() throws Exception {
+        repository.savePosition("kalimah_tayyibah", 50).get();
         
-        // Wait for executor to finish
-        Thread.sleep(200);
-
         SectionProgress progress = repository.getPosition("kalimah_tayyibah");
         assertNotNull(progress);
         assertEquals(50, progress.currentPage);
     }
 
-    @Test
-    public void testGeneralLastSeenUpdated() throws InterruptedException {
-        repository.savePosition("salah", 150);
-        
-        Thread.sleep(200);
 
-        com.moazzam.muntakhabahadith.data.db.GeneralLastSeen generalLastSeen = repository.getGeneralLastSeen();
-        assertNotNull(generalLastSeen);
-        assertEquals("salah", generalLastSeen.sectionId);
-        assertEquals(150, generalLastSeen.currentPage);
-    }
 
     @Test
-    public void testSectionIndependence() throws InterruptedException {
-        repository.savePosition("kalimah_tayyibah", 20);
-        repository.savePosition("salah", 150);
+    public void testSectionIndependence() throws Exception {
+        repository.savePosition("kalimah_tayyibah", 20).get();
+        repository.savePosition("salah", 150).get();
         
-        Thread.sleep(200);
-
         SectionProgress kalimahProgress = repository.getPosition("kalimah_tayyibah");
         SectionProgress salahProgress = repository.getPosition("salah");
         

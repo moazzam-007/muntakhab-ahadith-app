@@ -13,6 +13,9 @@ import com.moazzam.muntakhabahadith.BuildConfig;
 import com.moazzam.muntakhabahadith.R;
 import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
 
+import android.content.Intent;
+import android.content.UriPermission;
+
 /**
  * Minimal Settings screen.
  *
@@ -70,6 +73,11 @@ public class SettingsActivity extends AppCompatActivity {
             .setTitle(R.string.dialog_reset_title)
             .setMessage(R.string.dialog_reset_imported_message)
             .setPositiveButton(R.string.action_reset, (d, w) -> {
+                for (UriPermission permission : getContentResolver().getPersistedUriPermissions()) {
+                    try {
+                        getContentResolver().releasePersistableUriPermission(permission.getUri(), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    } catch (SecurityException ignored) {}
+                }
                 repository.deleteAllImportedPdfs();
                 Toast.makeText(this, R.string.imported_pdfs_cleared, Toast.LENGTH_SHORT).show();
             })

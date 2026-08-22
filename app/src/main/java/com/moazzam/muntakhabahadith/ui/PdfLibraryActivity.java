@@ -104,10 +104,14 @@ public class PdfLibraryActivity extends AppCompatActivity {
         }
 
         executor.execute(() -> {
-            String displayName = resolveDisplayName(uri);
-            long now = System.currentTimeMillis();
-            ImportedPdf pdf = new ImportedPdf(displayName, uri.toString(), 0, 0f, now, now);
-            repository.addImportedPdf(pdf);
+            try {
+                String displayName = resolveDisplayName(uri);
+                long now = System.currentTimeMillis();
+                ImportedPdf pdf = new ImportedPdf(displayName, uri.toString(), 0, 0f, now, now);
+                repository.addImportedPdf(pdf);
+            } catch (Exception e) {
+                android.util.Log.e("PdfLibraryActivity", "Error adding imported PDF", e);
+            }
         });
     }
 
@@ -138,8 +142,13 @@ public class PdfLibraryActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
             .setTitle(R.string.dialog_delete_title)
             .setMessage(getString(R.string.dialog_delete_message, pdf.displayName))
-            .setPositiveButton(R.string.action_delete, (d, w) ->
-                repository.deleteImportedPdf(pdf))
+            .setPositiveButton(R.string.action_delete, (d, w) -> {
+                try {
+                    getContentResolver().releasePersistableUriPermission(
+                        Uri.parse(pdf.uriString), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (SecurityException ignored) {}
+                repository.deleteImportedPdf(pdf);
+            })
             .setNegativeButton(R.string.action_cancel, null)
             .show();
     }

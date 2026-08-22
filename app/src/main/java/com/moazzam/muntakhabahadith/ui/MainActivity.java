@@ -26,10 +26,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ReadingRepository repository;
 
-    // Continue Reading card
-    private CardView continueReadingCard;
-    private TextView tvContinueSection;
-    private TextView tvContinuePage;
+
 
     // Progress bars and percentage labels for the six sections
     private ProgressBar[] progressBars;
@@ -45,42 +42,13 @@ public class MainActivity extends AppCompatActivity {
 
         repository = ReadingRepository.getInstance(this);
 
-        bindContinueReading();
+
         bindProgressSection();
         bindSectionButtons();
         bindPdfLibraryButton();
     }
 
-    // ─── Continue Reading ────────────────────────────────────────────────────────
 
-    private void bindContinueReading() {
-        continueReadingCard    = findViewById(R.id.card_continue_reading);
-        tvContinueSection      = findViewById(R.id.tv_continue_section);
-        tvContinuePage         = findViewById(R.id.tv_continue_page);
-        Button btnContinue     = findViewById(R.id.btn_continue);
-
-        repository.getGeneralLastSeenLive().observe(this, lastSeen -> {
-            if (lastSeen == null) {
-                continueReadingCard.setVisibility(View.GONE);
-                return;
-            }
-            continueReadingCard.setVisibility(View.VISIBLE);
-            Section section = SectionConfig.getSectionById(lastSeen.sectionId);
-            String sectionTitle = (section != null) ? section.getTitle() : lastSeen.sectionId;
-            tvContinueSection.setText(sectionTitle);
-            // Display page as 1-based for readability
-            tvContinuePage.setText(getString(R.string.page_label, lastSeen.currentPage + 1));
-            btnContinue.setOnClickListener(v ->
-                openSection(lastSeen.sectionId, lastSeen.currentPage));
-
-            // Accessibility
-            continueReadingCard.setContentDescription(
-                getString(R.string.cd_continue_reading, sectionTitle, lastSeen.currentPage + 1));
-        });
-
-        // Hide card initially until the observer fires
-        continueReadingCard.setVisibility(View.GONE);
-    }
 
     // ─── Progress Section ─────────────────────────────────────────────────────────
 
@@ -103,29 +71,30 @@ public class MainActivity extends AppCompatActivity {
         };
 
         repository.getAllProgressLive().observe(this, progressList -> {
-            // Reset all to 0 first
-            for (int i = 0; i < progressBars.length; i++) {
-                progressBars[i].setProgress(0);
-                progressTexts[i].setText("0%");
+            int[] percents = new int[progressBars.length];
+            if (progressList != null) {
+                for (SectionProgress sp : progressList) {
+                    Section section = SectionConfig.getSectionById(sp.sectionId);
+                    if (section != null) {
+                        int index = sectionIndex(sp.sectionId);
+                        if (index >= 0) {
+                            percents[index] = ProgressCalculator.calculateProgressPercent(sp.currentPage, section);
+                        }
+                    }
+                }
             }
-            if (progressList == null) return;
-            for (SectionProgress sp : progressList) {
-                updateProgressRow(sp);
+            for (int i = 0; i < progressBars.length; i++) {
+                if (progressBars[i].getProgress() != percents[i]) {
+                    progressBars[i].setProgress(percents[i]);
+                }
+                String pctString = percents[i] + "%";
+                if (!progressTexts[i].getText().toString().equals(pctString)) {
+                    progressTexts[i].setText(pctString);
+                    progressBars[i].setContentDescription(
+                        getString(R.string.cd_section_progress, SectionConfig.ALL_SECTIONS[i].getTitle(), percents[i]));
+                }
             }
         });
-    }
-
-    private void updateProgressRow(SectionProgress sp) {
-        Section section = SectionConfig.getSectionById(sp.sectionId);
-        if (section == null) return;
-        int index = sectionIndex(sp.sectionId);
-        if (index < 0) return;
-        int percent = ProgressCalculator.calculateProgressPercent(sp.currentPage, section);
-        progressBars[index].setProgress(percent);
-        progressTexts[index].setText(percent + "%");
-        // Accessibility
-        progressBars[index].setContentDescription(
-            getString(R.string.cd_section_progress, section.getTitle(), percent));
     }
 
     private int sectionIndex(String sectionId) {
@@ -157,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < buttonIds.length; i++) {
             final String id = sectionIds[i];
             Button btn = findViewById(buttonIds[i]);
-            btn.setOnClickListener(v -> openSection(id, -1));
+            btn.setOnClickListener(v -> openSection(id));
         }
     }
 
@@ -175,14 +144,10 @@ public class MainActivity extends AppCompatActivity {
      * Opens a section in the PDF reader.
      *
      * @param sectionId the section to open
-     * @param startPage 0-based PDF page, or -1 to let the reader decide based on saved progress
      */
-    private void openSection(String sectionId, int startPage) {
+    private void openSection(String sectionId) {
         Intent intent = new Intent(this, SectionReaderActivity.class);
         intent.putExtra(SectionReaderActivity.EXTRA_SECTION_ID, sectionId);
-        if (startPage >= 0) {
-            intent.putExtra(SectionReaderActivity.EXTRA_START_PAGE, startPage);
-        }
         startActivity(intent);
     }
 

@@ -11,8 +11,7 @@
         <item name="android:windowBackground">@color/background</item>
     </style>
 
-    <!-- Reader activities – no status bar tint change -->
-    <style name="Theme.MuntakhabAhadith.Reader" parent="Theme.MuntakhabAhadith" />
+
 
     <!-- Section action buttons on the home screen -->
     <style name="Widget.MuntakhabAhadith.SectionButton" parent="Widget.MaterialComponents.Button">

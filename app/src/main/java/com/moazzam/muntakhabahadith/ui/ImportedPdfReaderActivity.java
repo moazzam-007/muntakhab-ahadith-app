@@ -15,6 +15,10 @@ import com.moazzam.muntakhabahadith.R;
 import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
 import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
 import com.rajat.pdfviewer.PdfRendererView;
+import androidx.recyclerview.widget.RecyclerView;
+import android.view.ViewGroup;
+import android.view.View;
+import android.widget.SeekBar;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,6 +39,9 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
 
     private PdfRendererView pdfRendererView;
     private TextView        tvPageIndicator;
+    private SeekBar         seekBarPage;
+
+    private RecyclerView    pdfRecyclerView;
 
     private ImportedPdf importedPdf;
     private int         currentPage = 0;
@@ -64,29 +71,47 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
 
         // Load the PDF record from the database on a background thread
         executor.execute(() -> {
-            importedPdf = repository.getImportedPdfById(pdfId);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (importedPdf == null) {
-                    Toast.makeText(this, R.string.error_pdf_not_found, Toast.LENGTH_LONG).show();
-                    finish();
-                    return;
-                }
-                if (getSupportActionBar() != null) {
-                    getSupportActionBar().setTitle(importedPdf.displayName);
-                }
-                int startPage = (restoredPage >= 0) ? restoredPage : importedPdf.lastPage;
-                initPdf(startPage);
-            });
+            try {
+                importedPdf = repository.getImportedPdfById(pdfId);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (importedPdf == null) {
+                        Toast.makeText(this, R.string.error_pdf_not_found, Toast.LENGTH_LONG).show();
+                        finish();
+                        return;
+                    }
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle(importedPdf.displayName);
+                    }
+                    int startPage = (restoredPage >= 0) ? restoredPage : importedPdf.lastPage;
+                    initPdf(startPage);
+                });
+            } catch (Exception e) {
+                android.util.Log.e("ImportedPdfReader", "Error loading imported PDF record", e);
+            }
         });
     }
 
     private void bindViews() {
         pdfRendererView = findViewById(R.id.pdf_renderer_view);
         tvPageIndicator  = findViewById(R.id.tv_page_indicator);
+        seekBarPage      = findViewById(R.id.seekbar_page);
 
         Button btnSave = findViewById(R.id.btn_save_last_seen);
         btnSave.setOnClickListener(v -> saveCurrentPosition());
+
+        seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && pdfLoaded && pdfRecyclerView != null) {
+                    pdfRecyclerView.scrollToPosition(progress);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
     }
 
     private void initPdf(int startPage) {
@@ -113,8 +138,16 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
             @Override
             public void onPdfLoadSuccess(String absolutePath) {
                 pdfLoaded = true;
-                if (currentPage > 0) {
-                    pdfRendererView.jumpToPage(currentPage);
+                pdfRecyclerView = findRecyclerView(pdfRendererView);
+                if (pdfRecyclerView != null) {
+                    RecyclerView.Adapter<?> adapter = pdfRecyclerView.getAdapter();
+                    if (adapter != null) {
+                        seekBarPage.setMax(adapter.getItemCount() - 1);
+                    }
+                }
+
+                if (currentPage > 0 && pdfRecyclerView != null) {
+                    pdfRecyclerView.post(() -> pdfRecyclerView.scrollToPosition(currentPage));
                 }
             }
 
@@ -127,6 +160,10 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
             public void onPageChanged(int page, int total) {
                 currentPage = page;
                 totalPages  = total;
+                if (seekBarPage.getMax() != total - 1) {
+                    seekBarPage.setMax(total - 1);
+                }
+                seekBarPage.setProgress(page);
                 tvPageIndicator.setText(getString(R.string.page_of, page + 1, total));
             }
         });
@@ -172,8 +209,36 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_CURRENT_PAGE, currentPage);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdown();
+    }
+
+    private RecyclerView findRecyclerView(View view) {
+        RecyclerView rv = findRecyclerViewRecursive(view);
+        if (rv == null) {
+            android.util.Log.w("ImportedPdfReader", "findRecyclerView: RecyclerView not found in PdfRendererView. Library internal structure may have changed.");
+        }
+        return rv;
+    }
+
+    private RecyclerView findRecyclerViewRecursive(View view) {
+        if (view instanceof RecyclerView) {
+            return (RecyclerView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                RecyclerView rv = findRecyclerViewRecursive(vg.getChildAt(i));
+                if (rv != null) return rv;
+            }
+        }
+        return null;
     }
 }

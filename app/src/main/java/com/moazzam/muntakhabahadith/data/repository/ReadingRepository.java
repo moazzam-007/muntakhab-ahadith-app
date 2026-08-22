@@ -3,15 +3,19 @@ package com.moazzam.muntakhabahadith.data.repository;
 import android.content.Context;
 
 import androidx.lifecycle.LiveData;
+import androidx.annotation.MainThread;
+import androidx.annotation.WorkerThread;
 
 import com.moazzam.muntakhabahadith.data.db.AppDatabase;
-import com.moazzam.muntakhabahadith.data.db.GeneralLastSeen;
+
 import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
 import com.moazzam.muntakhabahadith.data.db.SectionProgress;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import android.util.Log;
 
 /**
  * Single source of truth for all reading-state persistence.
@@ -23,6 +27,7 @@ import java.util.concurrent.Executors;
  */
 public class ReadingRepository {
 
+    private static final String TAG = "ReadingRepository";
     private static volatile ReadingRepository INSTANCE;
 
     private final AppDatabase db;
@@ -51,17 +56,17 @@ public class ReadingRepository {
      * Saves the reading position for a section and updates the general last-seen record.
      * Safe to call from the main thread (runs on background executor).
      */
-    public void savePosition(String sectionId, int page) {
-        executor.execute(() -> {
-            long now = System.currentTimeMillis();
-
-            // Save section-specific position
-            SectionProgress sp = new SectionProgress(sectionId, page, now);
-            db.sectionProgressDao().saveProgress(sp);
-
-            // Update the general last-seen (for Continue Reading)
-            GeneralLastSeen gls = new GeneralLastSeen(1, sectionId, page, now);
-            db.generalLastSeenDao().save(gls);
+    @MainThread
+    public Future<?> savePosition(String sectionId, int page) {
+        return executor.submit(() -> {
+            try {
+                long now = System.currentTimeMillis();
+                SectionProgress sp = new SectionProgress(sectionId, page, now);
+                db.sectionProgressDao().saveProgress(sp);
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving position for section: " + sectionId, e);
+                throw new RuntimeException("Database error saving position", e);
+            }
         });
     }
 
@@ -69,19 +74,18 @@ public class ReadingRepository {
      * Returns the saved progress for a section, or null if the section has never been read.
      * Must NOT be called on the main thread.
      */
+    @WorkerThread
     public SectionProgress getPosition(String sectionId) {
         return db.sectionProgressDao().getProgress(sectionId);
     }
 
     /** Observable list of all section progress records. Safe to observe from the UI. */
+    @MainThread
     public LiveData<List<SectionProgress>> getAllProgressLive() {
         return db.sectionProgressDao().getAllProgressLive();
     }
 
-    /** Resets progress for a single section. Safe to call from the main thread. */
-    public void resetSectionProgress(String sectionId) {
-        executor.execute(() -> db.sectionProgressDao().deleteProgress(sectionId));
-    }
+
 
     /**
      * Resets all Muntakhab Ahadith progress:
@@ -89,30 +93,19 @@ public class ReadingRepository {
      *   - The general last-seen record
      * Safe to call from the main thread.
      */
-    public void resetAllProgress() {
-        executor.execute(() -> {
-            db.sectionProgressDao().deleteAllProgress();
-            db.generalLastSeenDao().deleteAll();
+    @MainThread
+    public Future<?> resetAllProgress() {
+        return executor.submit(() -> {
+            try {
+                db.sectionProgressDao().deleteAllProgress();
+            } catch (Exception e) {
+                Log.e(TAG, "Error resetting all progress", e);
+                throw new RuntimeException("Database error resetting all progress", e);
+            }
         });
     }
 
-    // ─── General Last Seen ────────────────────────────────────────────────────
 
-    /**
-     * Observable general last-seen record.
-     * Used to populate the Continue Reading card. Safe to observe from the UI.
-     */
-    public LiveData<GeneralLastSeen> getGeneralLastSeenLive() {
-        return db.generalLastSeenDao().getLive();
-    }
-
-    /**
-     * Returns the general last-seen record synchronously.
-     * Must NOT be called on the main thread.
-     */
-    public GeneralLastSeen getGeneralLastSeen() {
-        return db.generalLastSeenDao().get();
-    }
 
     // ─── Imported PDFs ────────────────────────────────────────────────────────
 
@@ -120,18 +113,35 @@ public class ReadingRepository {
      * Observable list of all imported PDFs, newest first.
      * Safe to observe from the UI.
      */
+    @MainThread
     public LiveData<List<ImportedPdf>> getAllImportedPdfsLive() {
         return db.importedPdfDao().getAllLive();
     }
 
     /** Adds a new imported PDF to the library. Safe to call from the main thread. */
-    public void addImportedPdf(ImportedPdf pdf) {
-        executor.execute(() -> db.importedPdfDao().insert(pdf));
+    @MainThread
+    public Future<?> addImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().insert(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error adding imported PDF", e);
+                throw new RuntimeException("Database error adding imported PDF", e);
+            }
+        });
     }
 
     /** Updates an existing imported PDF record. Safe to call from the main thread. */
-    public void updateImportedPdf(ImportedPdf pdf) {
-        executor.execute(() -> db.importedPdfDao().update(pdf));
+    @MainThread
+    public Future<?> updateImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().update(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating imported PDF", e);
+                throw new RuntimeException("Database error updating imported PDF", e);
+            }
+        });
     }
 
     /**
@@ -139,29 +149,52 @@ public class ReadingRepository {
      * Calculates progress from currentPage / totalPages.
      * Safe to call from the main thread.
      */
-    public void saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages) {
-        executor.execute(() -> {
-            pdf.lastPage   = currentPage;
-            pdf.progress   = totalPages > 0 ? (float) currentPage / totalPages : 0f;
-            pdf.updatedAt  = System.currentTimeMillis();
-            db.importedPdfDao().update(pdf);
+    @MainThread
+    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages) {
+        return executor.submit(() -> {
+            try {
+                pdf.lastPage   = currentPage;
+                pdf.progress   = totalPages > 0 ? (float) (currentPage + 1) / totalPages : 0f;
+                pdf.updatedAt  = System.currentTimeMillis();
+                db.importedPdfDao().update(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving imported PDF position", e);
+                throw new RuntimeException("Database error saving imported PDF position", e);
+            }
         });
     }
 
     /** Deletes an imported PDF record (does not delete the actual file). Safe from main thread. */
-    public void deleteImportedPdf(ImportedPdf pdf) {
-        executor.execute(() -> db.importedPdfDao().delete(pdf));
+    @MainThread
+    public Future<?> deleteImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().delete(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error deleting imported PDF", e);
+                throw new RuntimeException("Database error deleting imported PDF", e);
+            }
+        });
     }
 
     /** Deletes all imported PDF records. Safe to call from the main thread. */
-    public void deleteAllImportedPdfs() {
-        executor.execute(() -> db.importedPdfDao().deleteAll());
+    @MainThread
+    public Future<?> deleteAllImportedPdfs() {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().deleteAll();
+            } catch (Exception e) {
+                Log.e(TAG, "Error deleting all imported PDFs", e);
+                throw new RuntimeException("Database error deleting all imported PDFs", e);
+            }
+        });
     }
 
     /**
      * Returns an imported PDF by its database ID.
      * Must NOT be called on the main thread.
      */
+    @WorkerThread
     public ImportedPdf getImportedPdfById(long id) {
         return db.importedPdfDao().getById(id);
     }

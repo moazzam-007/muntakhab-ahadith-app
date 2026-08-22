@@ -11,12 +11,12 @@
     <string name="section_dawat">Dawat wa Tabligh</string>
 
     <!-- Home screen labels -->
-    <string name="title_continue_reading">Continue Reading</string>
+    <!-- Home screen labels -->
     <string name="title_your_progress">Your Progress</string>
     <string name="title_six_qualities">Six Qualities</string>
     <string name="title_pdf_library">PDF Library</string>
     <string name="page_label">Page %1$d</string>
-    <string name="btn_continue">Continue</string>
+
     <string name="btn_pdf_library">PDF Library</string>
 
     <!-- Reader screen -->
@@ -75,8 +75,7 @@
     <!-- Accessibility content descriptions -->
     <!-- Args: 1=section title, 2=percent -->
     <string name="cd_section_progress">Reading progress for %1$s: %2$d percent</string>
-    <!-- Args: 1=section title, 2=page number -->
-    <string name="cd_continue_reading">Continue reading %1$s from page %2$d</string>
+
     <!-- Arg: 1=PDF name -->
     <string name="cd_delete_pdf">Delete %1$s from library</string>
 </resources>

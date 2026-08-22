@@ -23,23 +23,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.File;
 import com.moazzam.muntakhabahadith.utils.AssetCopier;
+import androidx.recyclerview.widget.RecyclerView;
+import android.view.ViewGroup;
+import android.widget.SeekBar;
 
 /**
  * PDF reader for the six main sections of Muntakhab Ahadith.
  *
  * Behaviour:
- *   - If EXTRA_START_PAGE is provided (from Continue Reading), open at that page directly.
- *   - Otherwise, check for a saved position and ask the user whether to continue or start over.
- *   - If no saved position exists, open at the section's first page.
+ *   - Checks for a saved position and asks the user whether to continue or start over.
+ *   - If no saved position exists, opens at the section's first page.
  *   - Auto-saves the current page on onPause() (safety save).
  *   - Provides a manual "Save Last Seen" button.
- *   - Survives rotation via onSaveInstanceState.
+ *   - Survives process death via onSaveInstanceState.
  */
 public class SectionReaderActivity extends AppCompatActivity {
 
     /** Intent extras */
     public static final String EXTRA_SECTION_ID = "section_id";
-    public static final String EXTRA_START_PAGE  = "start_page";
 
     private static final String STATE_CURRENT_PAGE = "current_page";
 
@@ -50,6 +51,9 @@ public class SectionReaderActivity extends AppCompatActivity {
     private PdfRendererView pdfRendererView;
     private TextView        tvPageIndicator;
     private TextView        tvSectionTitle;
+    private SeekBar         seekBarPage;
+
+    private RecyclerView    pdfRecyclerView;
 
     private int     currentPage = 0;
     private int     totalPages  = 0;
@@ -85,15 +89,8 @@ public class SectionReaderActivity extends AppCompatActivity {
             currentPage = savedInstanceState.getInt(STATE_CURRENT_PAGE, section.getPdfStartPage());
             initPdf(currentPage);
         } else {
-            int intentPage = getIntent().getIntExtra(EXTRA_START_PAGE, -1);
-            if (intentPage >= 0) {
-                // Direct navigation (e.g. from Continue Reading card)
-                currentPage = SectionConfig.clampToSection(intentPage, section);
-                initPdf(currentPage);
-            } else {
-                // Check saved progress in background, then decide
-                loadSavedPositionAndDecide();
-            }
+            // Check saved progress in background, then decide
+            loadSavedPositionAndDecide();
         }
     }
 
@@ -103,6 +100,7 @@ public class SectionReaderActivity extends AppCompatActivity {
         pdfRendererView = findViewById(R.id.pdf_renderer_view);
         tvPageIndicator = findViewById(R.id.tv_page_indicator);
         tvSectionTitle  = findViewById(R.id.tv_section_title);
+        seekBarPage     = findViewById(R.id.seekbar_page);
 
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle(section.getTitle());
@@ -117,9 +115,23 @@ public class SectionReaderActivity extends AppCompatActivity {
         Button btnStart = findViewById(R.id.btn_start_beginning);
         btnStart.setOnClickListener(v -> {
             currentPage = section.getPdfStartPage();
-            if (pdfLoaded) {
-                pdfRendererView.jumpToPage(currentPage);
+            if (pdfLoaded && pdfRecyclerView != null) {
+                pdfRecyclerView.scrollToPosition(currentPage);
             }
+        });
+
+        // Seekbar logic
+        seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && pdfLoaded && pdfRecyclerView != null) {
+                    pdfRecyclerView.scrollToPosition(progress);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
         });
     }
 
@@ -127,15 +139,19 @@ public class SectionReaderActivity extends AppCompatActivity {
 
     private void loadSavedPositionAndDecide() {
         executor.execute(() -> {
-            SectionProgress saved = repository.getPosition(section.getId());
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (saved != null && saved.currentPage > section.getPdfStartPage()) {
-                    showContinueDialog(saved.currentPage);
-                } else {
-                    initPdf(section.getPdfStartPage());
-                }
-            });
+            try {
+                SectionProgress saved = repository.getPosition(section.getId());
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (saved != null && saved.currentPage > section.getPdfStartPage()) {
+                        showContinueDialog(saved.currentPage);
+                    } else {
+                        initPdf(section.getPdfStartPage());
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("SectionReaderActivity", "Error loading saved position", e);
+            }
         });
     }
 
@@ -175,9 +191,18 @@ public class SectionReaderActivity extends AppCompatActivity {
             @Override
             public void onPdfLoadSuccess(String absolutePath) {
                 pdfLoaded = true;
-                // P1-1 fix: Position the viewer at the saved/requested page
-                if (currentPage > 0) {
-                    pdfRendererView.jumpToPage(currentPage);
+                pdfRecyclerView = findRecyclerView(pdfRendererView);
+                if (pdfRecyclerView != null) {
+                    // Update seekbar max
+                    RecyclerView.Adapter<?> adapter = pdfRecyclerView.getAdapter();
+                    if (adapter != null) {
+                        seekBarPage.setMax(adapter.getItemCount() - 1);
+                    }
+                }
+                
+                // Fix: Use post to ensure the view has laid out before jumping
+                if (currentPage > 0 && pdfRecyclerView != null) {
+                    pdfRecyclerView.post(() -> pdfRecyclerView.scrollToPosition(currentPage));
                 }
             }
 
@@ -191,6 +216,11 @@ public class SectionReaderActivity extends AppCompatActivity {
             public void onPageChanged(int page, int total) {
                 currentPage = page;
                 totalPages  = total;
+                if (seekBarPage.getMax() != total - 1) {
+                    seekBarPage.setMax(total - 1);
+                }
+                // Update seekbar without triggering onProgressChanged listener's scroll
+                seekBarPage.setProgress(page);
                 updatePageIndicator(page, total);
             }
         });
@@ -208,6 +238,7 @@ public class SectionReaderActivity extends AppCompatActivity {
                     }
                 });
             } catch (Exception e) {
+                android.util.Log.e("SectionReaderActivity", "Error copying asset to cache", e);
                 runOnUiThread(() -> showPdfError(e.getMessage() != null ? e.getMessage() : "Failed to extract PDF"));
             }
         });
@@ -266,8 +297,36 @@ public class SectionReaderActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_CURRENT_PAGE, currentPage);
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdown();
+    }
+
+    private RecyclerView findRecyclerView(View view) {
+        RecyclerView rv = findRecyclerViewRecursive(view);
+        if (rv == null) {
+            android.util.Log.w("SectionReaderActivity", "findRecyclerView: RecyclerView not found in PdfRendererView. Library internal structure may have changed.");
+        }
+        return rv;
+    }
+
+    private RecyclerView findRecyclerViewRecursive(View view) {
+        if (view instanceof RecyclerView) {
+            return (RecyclerView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                RecyclerView rv = findRecyclerViewRecursive(vg.getChildAt(i));
+                if (rv != null) return rv;
+            }
+        }
+        return null;
     }
 }

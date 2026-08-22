@@ -11,8 +11,7 @@
     <color name="surface">#FFFFFF</color>
     <color name="surface_variant">#F1F8E9</color>
 
-    <!-- Continue Reading card background (soft green tint) -->
-    <color name="card_continue">#E8F5E9</color>
+
 
     <!-- Text -->
     <color name="text_primary">#1A1A1A</color>

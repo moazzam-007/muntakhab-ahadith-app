@@ -11,15 +11,17 @@ import androidx.room.RoomDatabase;
  *
  * Tables:
  *   section_progress  – reading state for each of the six main sections
- *   general_last_seen – the most recently opened section (Continue Reading)
  *   imported_pdf      – user's personal PDF library
+ *
+ * DANGER: Currently uses fallbackToDestructiveMigration() for v1.
+ * When bumping to v2, a proper Migration MUST be written, otherwise 
+ * Room will drop the DB and all user reading progress will be permanently lost.
  *
  * Singleton pattern – use {@link #getInstance(Context)} everywhere.
  */
 @Database(
     entities = {
         SectionProgress.class,
-        GeneralLastSeen.class,
         ImportedPdf.class
     },
     version = 1,
@@ -31,7 +33,7 @@ public abstract class AppDatabase extends RoomDatabase {
     private static volatile AppDatabase INSTANCE;
 
     public abstract SectionProgressDao sectionProgressDao();
-    public abstract GeneralLastSeenDao generalLastSeenDao();
+
     public abstract ImportedPdfDao     importedPdfDao();
 
     /**

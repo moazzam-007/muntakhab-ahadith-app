@@ -6,12 +6,14 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import java.io.IOException;
+
 public class AssetCopier {
 
     /**
      * Copies a file from assets to the app's cache directory and returns the File.
      */
-    public static File copyAssetToCache(Context context, String assetFileName) throws Exception {
+    public static File copyAssetToCache(Context context, String assetFileName) throws IOException {
         File cachedFile = new File(context.getCacheDir(), assetFileName);
         
         // Return existing if already copied
@@ -32,7 +34,7 @@ public class AssetCopier {
         }
         
         if (!tempFile.renameTo(cachedFile)) {
-            throw new Exception("Failed to rename temporary asset file to cache file");
+            throw new IOException("Failed to rename temporary asset file to cache file");
         }
         return cachedFile;
     }
