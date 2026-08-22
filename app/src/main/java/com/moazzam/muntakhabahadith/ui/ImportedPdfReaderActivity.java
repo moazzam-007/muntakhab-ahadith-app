@@ -45,6 +45,8 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
 
     private ImportedPdf importedPdf;
     private int         currentPage = 0;
+    private int         targetPage  = -1;
+    private boolean     isJumpSettled = false;
     private int         totalPages  = 0;
     private boolean     pdfLoaded   = false;
 
@@ -103,8 +105,11 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
         seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && pdfLoaded && pdfRecyclerView != null) {
-                    pdfRecyclerView.scrollToPosition(progress);
+                if (fromUser && pdfLoaded) {
+                    targetPage = progress;
+                    currentPage = targetPage;
+                    isJumpSettled = false;
+                    jumpToPageSafely(targetPage);
                 }
             }
             @Override
@@ -123,7 +128,9 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
             return;
         }
 
-        currentPage = Math.max(0, startPage);
+        targetPage = Math.max(0, startPage);
+        currentPage = targetPage;
+        isJumpSettled = false;
 
         pdfRendererView.setStatusListener(new PdfRendererView.StatusCallBack() {
 
@@ -146,8 +153,8 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
                     }
                 }
 
-                if (currentPage > 0 && pdfRecyclerView != null) {
-                    pdfRecyclerView.post(() -> pdfRecyclerView.scrollToPosition(currentPage));
+                if (targetPage >= 0) {
+                    jumpToPageSafely(targetPage);
                 }
             }
 
@@ -158,13 +165,26 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
 
             @Override
             public void onPageChanged(int page, int total) {
-                currentPage = page;
-                totalPages  = total;
-                if (seekBarPage.getMax() != total - 1) {
-                    seekBarPage.setMax(total - 1);
+                if (!isJumpSettled) {
+                    if (page == targetPage || targetPage < 0) {
+                        isJumpSettled = true;
+                        currentPage = page;
+                    }
+                } else {
+                    currentPage = page;
                 }
-                seekBarPage.setProgress(page);
-                tvPageIndicator.setText(getString(R.string.page_of, page + 1, total));
+
+                if (total > 0) {
+                    totalPages = total;
+                }
+
+                if (isJumpSettled) {
+                    if (seekBarPage.getMax() != total - 1) {
+                        seekBarPage.setMax(total - 1);
+                    }
+                    seekBarPage.setProgress(page);
+                    tvPageIndicator.setText(getString(R.string.page_of, page + 1, total));
+                }
             }
         });
 
@@ -177,8 +197,11 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
 
     private void saveCurrentPosition() {
         if (importedPdf != null) {
-            repository.saveImportedPdfPosition(importedPdf, currentPage, totalPages);
-            Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+            repository.saveImportedPdfPosition(importedPdf, currentPage, totalPages, () -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+                }
+            });
         }
     }
 
@@ -218,6 +241,16 @@ public class ImportedPdfReaderActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdown();
+    }
+
+    private void jumpToPageSafely(int page) {
+        try {
+            if (pdfRendererView != null) {
+                pdfRendererView.jumpToPage(page);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("ImportedPdfReader", "Failed to jump to page", e);
+        }
     }
 
     private RecyclerView findRecyclerView(View view) {

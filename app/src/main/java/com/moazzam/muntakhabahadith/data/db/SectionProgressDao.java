@@ -11,6 +11,9 @@ import java.util.List;
 @Dao
 public interface SectionProgressDao {
 
+    @Query("SELECT * FROM section_progress ORDER BY updatedAt DESC LIMIT 1")
+    LiveData<SectionProgress> getLatestProgressLive();
+
     /** Saves or replaces the progress for a section. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void saveProgress(SectionProgress progress);

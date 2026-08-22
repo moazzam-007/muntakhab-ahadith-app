@@ -1,0 +1,3401 @@
+\n================================================================================\nFILE: build.gradle\n================================================================================\n\n// Top-level build file. Configuration for all sub-projects/modules.
+plugins {
+    id 'com.android.application' version '8.7.0' apply false
+}
+\n================================================================================\nFILE: gradle.properties\n================================================================================\n\n# Gradle JVM arguments
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+# Enable Gradle daemon for faster builds
+org.gradle.daemon=true
+
+# Enable parallel builds
+org.gradle.parallel=true
+
+# Android
+android.useAndroidX=true
+\n================================================================================\nFILE: local.properties\n================================================================================\n\nsdk.dir=C\:\\Users\\munvv\\AppData\\Local\\Android\\Sdk
+\n================================================================================\nFILE: settings.gradle\n================================================================================\n\npluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MuntakhabAhadith"
+include ':app'
+\n================================================================================\nFILE: app\build.gradle\n================================================================================\n\nplugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.moazzam.muntakhabahadith'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.moazzam.muntakhabahadith"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Prevent packaging conflicts from Kotlin libraries pulled in transitively
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+dependencies {
+    // AndroidX Core
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.activity:activity:1.9.0'
+
+    // Room – local database for section progress and imported PDFs
+    implementation 'androidx.room:room-runtime:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+
+    // PDF Viewer – pinned to a known-working stable version
+    // Library: io.github.afreakyelf:Pdf-Viewer
+    // GitHub : https://github.com/afreakyelf/Pdf-Viewer
+    // Note   : This Kotlin library is called from Java; all public APIs are accessible via JVM interop.
+    implementation 'io.github.afreakyelf:Pdf-Viewer:2.1.1'
+
+    // Unit tests
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+\n================================================================================\nFILE: app\src\androidTest\java\com\moazzam\muntakhabahadith\ReadingRepositoryTest.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import android.content.Context;
+import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
+import com.moazzam.muntakhabahadith.data.db.SectionProgress;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+@RunWith(AndroidJUnit4.class)
+public class ReadingRepositoryTest {
+
+    private ReadingRepository repository;
+
+    @Before
+    public void setup() {
+        Context context = ApplicationProvider.getApplicationContext();
+        repository = ReadingRepository.getInstance(context);
+        // Clear all before tests
+        try {
+            repository.resetAllProgress().get();
+            repository.deleteAllImportedPdfs().get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void testSaveAndGetPosition() throws Exception {
+        repository.savePosition("kalimah_tayyibah", 50).get();
+        
+        SectionProgress progress = repository.getPosition("kalimah_tayyibah");
+        assertNotNull(progress);
+        assertEquals(50, progress.currentPage);
+    }
+
+
+
+    @Test
+    public void testSectionIndependence() throws Exception {
+        repository.savePosition("kalimah_tayyibah", 20).get();
+        repository.savePosition("salah", 150).get();
+        
+        SectionProgress kalimahProgress = repository.getPosition("kalimah_tayyibah");
+        SectionProgress salahProgress = repository.getPosition("salah");
+        
+        assertNotNull(kalimahProgress);
+        assertNotNull(salahProgress);
+        assertEquals(20, kalimahProgress.currentPage);
+        assertEquals(150, salahProgress.currentPage);
+    }
+}
+\n================================================================================\nFILE: app\src\main\AndroidManifest.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Strip library-injected permissions -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+
+    <!--
+        No INTERNET permission – the app is entirely offline.
+        No broad STORAGE permissions – imported PDFs use Android's Storage Access Framework.
+    -->
+
+    <application
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MuntakhabAhadith">
+
+        <!-- Home screen -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- PDF reader for the six main Muntakhab Ahadith sections -->
+        <activity
+            android:name=".ui.SectionReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- User's imported PDF library list -->
+        <activity
+            android:name=".ui.PdfLibraryActivity"
+            android:exported="false" />
+
+        <!-- PDF reader for user-imported PDFs -->
+        <activity
+            android:name=".ui.ImportedPdfReaderActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- Settings screen -->
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false" />
+
+    </application>
+
+</manifest>
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\db\AppDatabase.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.db;
+
+import android.content.Context;
+
+import androidx.room.Database;
+import androidx.room.Room;
+import androidx.room.RoomDatabase;
+
+/**
+ * Main Room database for Muntakhab Ahadith.
+ *
+ * Tables:
+ *   section_progress  – reading state for each of the six main sections
+ *   imported_pdf      – user's personal PDF library
+ *
+ * DANGER: Currently uses fallbackToDestructiveMigration() for v1.
+ * When bumping to v2, a proper Migration MUST be written, otherwise 
+ * Room will drop the DB and all user reading progress will be permanently lost.
+ *
+ * Singleton pattern – use {@link #getInstance(Context)} everywhere.
+ */
+@Database(
+    entities = {
+        SectionProgress.class,
+        ImportedPdf.class
+    },
+    version = 1,
+    exportSchema = false
+)
+public abstract class AppDatabase extends RoomDatabase {
+
+    private static final String DB_NAME = "muntakhab_ahadith.db";
+    private static volatile AppDatabase INSTANCE;
+
+    public abstract SectionProgressDao sectionProgressDao();
+
+    public abstract ImportedPdfDao     importedPdfDao();
+
+    /**
+     * Returns the singleton database instance.
+     * Thread-safe via double-checked locking.
+     */
+    public static AppDatabase getInstance(Context context) {
+        if (INSTANCE == null) {
+            synchronized (AppDatabase.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = Room.databaseBuilder(
+                            context.getApplicationContext(),
+                            AppDatabase.class,
+                            DB_NAME
+                    ).fallbackToDestructiveMigration().build();
+                }
+            }
+        }
+        return INSTANCE;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\db\ImportedPdf.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.db;
+
+import androidx.annotation.NonNull;
+import androidx.room.Entity;
+import androidx.room.PrimaryKey;
+
+/**
+ * Room entity representing a user-imported PDF in the PDF Library feature.
+ *
+ * URIs are stored as strings and accessed via Android's Storage Access Framework.
+ * A URI may become inaccessible if:
+ *   - The user deletes the original file
+ *   - The document provider revokes access
+ * The app handles this gracefully and does not crash.
+ */
+@Entity(tableName = "imported_pdf")
+public class ImportedPdf {
+
+    /** Auto-generated unique identifier. */
+    @PrimaryKey(autoGenerate = true)
+    public long id;
+
+    /** Human-readable display name (typically the file name from the document picker). */
+    @NonNull
+    public String displayName;
+
+    /** Persisted content URI string – access via Storage Access Framework. */
+    @NonNull
+    public String uriString;
+
+    /** 0-based PDF page index of the last seen page. */
+    public int lastPage;
+
+    /** Reading progress as a fraction in [0.0, 1.0]. */
+    public float progress;
+
+    /** Timestamp when this PDF was added to the library. */
+    public long addedAt;
+
+    /** Timestamp of the last reading update. */
+    public long updatedAt;
+
+    public ImportedPdf(@NonNull String displayName, @NonNull String uriString,
+                       int lastPage, float progress, long addedAt, long updatedAt) {
+        this.displayName = displayName;
+        this.uriString   = uriString;
+        this.lastPage    = lastPage;
+        this.progress    = progress;
+        this.addedAt     = addedAt;
+        this.updatedAt   = updatedAt;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\db\ImportedPdfDao.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.db;
+
+import androidx.lifecycle.LiveData;
+import androidx.room.Dao;
+import androidx.room.Delete;
+import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
+import androidx.room.Query;
+import androidx.room.Update;
+
+import java.util.List;
+
+@Dao
+public interface ImportedPdfDao {
+
+    /** Inserts a new imported PDF record. Returns the auto-generated row ID. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    long insert(ImportedPdf pdf);
+
+    /** Updates an existing imported PDF record (e.g., after reading progress changes). */
+    @Update
+    void update(ImportedPdf pdf);
+
+    /** Deletes an imported PDF record. Does not delete the actual file on disk. */
+    @Delete
+    void delete(ImportedPdf pdf);
+
+    /** Observable list of all imported PDFs, newest first. */
+    @Query("SELECT * FROM imported_pdf ORDER BY updatedAt DESC")
+    LiveData<List<ImportedPdf>> getAllLive();
+
+    /** Synchronous fetch of all imported PDFs. */
+    @Query("SELECT * FROM imported_pdf ORDER BY updatedAt DESC")
+    List<ImportedPdf> getAll();
+
+    /** Returns a single imported PDF by its row ID (null if not found). */
+    @Query("SELECT * FROM imported_pdf WHERE id = :id")
+    ImportedPdf getById(long id);
+
+    /** Deletes a single imported PDF by its row ID. */
+    @Query("DELETE FROM imported_pdf WHERE id = :id")
+    void deleteById(long id);
+
+    /** Deletes all imported PDF records. */
+    @Query("DELETE FROM imported_pdf")
+    void deleteAll();
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\db\SectionProgress.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.db;
+
+import androidx.annotation.NonNull;
+import androidx.room.Entity;
+import androidx.room.PrimaryKey;
+
+/**
+ * Room entity storing the reading state for one of the six main sections.
+ *
+ * sectionId is the primary key and corresponds to the IDs defined in SectionConfig.
+ *
+ * PAGE INDEX CONVENTION:
+ *   currentPage is a 0-based PDF viewer page index (matches the PDF library's indexing).
+ */
+@Entity(tableName = "section_progress")
+public class SectionProgress {
+
+    /** Section ID – one of the IDs from SectionConfig (e.g. "kalimah_tayyibah") */
+    @PrimaryKey
+    @NonNull
+    public String sectionId;
+
+    /** 0-based PDF page index of the last seen page in this section. */
+    public int currentPage;
+
+    /** Timestamp of last update (System.currentTimeMillis()). */
+    public long updatedAt;
+
+    public SectionProgress(@NonNull String sectionId, int currentPage, long updatedAt) {
+        this.sectionId    = sectionId;
+        this.currentPage  = currentPage;
+        this.updatedAt    = updatedAt;
+    }
+    
+    public long getUpdatedAt() {
+        return updatedAt;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\db\SectionProgressDao.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.db;
+
+import androidx.lifecycle.LiveData;
+import androidx.room.Dao;
+import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
+import androidx.room.Query;
+
+import java.util.List;
+
+@Dao
+public interface SectionProgressDao {
+
+    @Query("SELECT * FROM section_progress ORDER BY updatedAt DESC LIMIT 1")
+    LiveData<SectionProgress> getLatestProgressLive();
+
+    /** Saves or replaces the progress for a section. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void saveProgress(SectionProgress progress);
+
+    /** Returns the saved progress for a single section (null if never read). */
+    @Query("SELECT * FROM section_progress WHERE sectionId = :sectionId")
+    SectionProgress getProgress(String sectionId);
+
+    /** Observable list of all section progress records. */
+    @Query("SELECT * FROM section_progress")
+    LiveData<List<SectionProgress>> getAllProgressLive();
+
+    /** Synchronous fetch of all section progress records. */
+    @Query("SELECT * FROM section_progress")
+    List<SectionProgress> getAllProgress();
+
+
+
+    /** Deletes all six section progress records. */
+    @Query("DELETE FROM section_progress")
+    void deleteAllProgress();
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\model\Section.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.model;
+
+/**
+ * Represents one of the six main sections of Muntakhab Ahadith.
+ *
+ * This is a plain, immutable data class – NOT a Room entity.
+ * All section definitions live in {@link com.moazzam.muntakhabahadith.utils.SectionConfig}.
+ *
+ * PAGE INDEX CONVENTION:
+ *   pdfStartPage and pdfEndPage use 0-based PDF viewer page indexing.
+ *   PDF viewer page 0 = the very first page of the PDF file.
+ */
+public class Section {
+
+    private final String id;
+    private final String title;
+    private final int pdfStartPage; // 0-based, inclusive
+    private final int pdfEndPage;   // 0-based, inclusive
+
+    public Section(String id, String title, int pdfStartPage, int pdfEndPage) {
+        this.id           = id;
+        this.title        = title;
+        this.pdfStartPage = pdfStartPage;
+        this.pdfEndPage   = pdfEndPage;
+    }
+
+    public String getId()           { return id; }
+    public String getTitle()        { return title; }
+    public int getPdfStartPage()    { return pdfStartPage; }
+    public int getPdfEndPage()      { return pdfEndPage; }
+
+    /** Total number of pages in this section (inclusive range). */
+    public int getPageCount() {
+        return pdfEndPage - pdfStartPage + 1;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\data\repository\ReadingRepository.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.data.repository;
+
+import android.content.Context;
+
+import androidx.lifecycle.LiveData;
+import androidx.annotation.MainThread;
+import androidx.annotation.WorkerThread;
+
+import com.moazzam.muntakhabahadith.data.db.AppDatabase;
+
+import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
+import com.moazzam.muntakhabahadith.data.db.SectionProgress;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import android.util.Log;
+
+/**
+ * Single source of truth for all reading-state persistence.
+ *
+ * All database write operations run on a dedicated background thread via ExecutorService.
+ * LiveData-returning methods are safe to call on the main thread.
+ * Non-LiveData query methods (getPosition, getGeneralLastSeen, etc.) must NOT be called
+ * on the main thread – call them from an executor or background thread.
+ */
+public class ReadingRepository {
+
+    private static final String TAG = "ReadingRepository";
+    private static volatile ReadingRepository INSTANCE;
+
+    private final AppDatabase db;
+    private final ExecutorService executor;
+
+    private ReadingRepository(Context context) {
+        db       = AppDatabase.getInstance(context.getApplicationContext());
+        executor = Executors.newSingleThreadExecutor();
+    }
+
+    /** Returns the singleton repository instance. Thread-safe. */
+    public static ReadingRepository getInstance(Context context) {
+        if (INSTANCE == null) {
+            synchronized (ReadingRepository.class) {
+                if (INSTANCE == null) {
+                    INSTANCE = new ReadingRepository(context.getApplicationContext());
+                }
+            }
+        }
+        return INSTANCE;
+    }
+
+    // ─── Section Progress ─────────────────────────────────────────────────────
+
+    /**
+     * Saves the reading position for a section and updates the general last-seen record.
+     * Safe to call from the main thread (runs on background executor).
+     */
+    @MainThread
+    public Future<?> savePosition(String sectionId, int page, Runnable onSuccess) {
+        return executor.submit(() -> {
+            try {
+                long now = System.currentTimeMillis();
+                SectionProgress sp = new SectionProgress(sectionId, page, now);
+                db.sectionProgressDao().saveProgress(sp);
+                if (onSuccess != null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(onSuccess);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving position for section: " + sectionId, e);
+                throw new RuntimeException("Database error saving position", e);
+            }
+        });
+    }
+
+    /**
+     * Overload for internal safety saves without a callback.
+     */
+    @MainThread
+    public Future<?> savePosition(String sectionId, int page) {
+        return savePosition(sectionId, page, null);
+    }
+
+    /**
+     * Returns the saved progress for a section, or null if the section has never been read.
+     * Must NOT be called on the main thread.
+     */
+    @WorkerThread
+    public SectionProgress getPosition(String sectionId) {
+        return db.sectionProgressDao().getProgress(sectionId);
+    }
+
+    /** Observable list of all section progress records. Safe to observe from the UI. */
+    @MainThread
+    public LiveData<List<SectionProgress>> getAllProgressLive() {
+        return db.sectionProgressDao().getAllProgressLive();
+    }
+
+    /** Observable single most recent section progress. Safe to observe from UI. */
+    @MainThread
+    public LiveData<SectionProgress> getLatestProgressLive() {
+        return db.sectionProgressDao().getLatestProgressLive();
+    }
+
+
+
+    /**
+     * Resets all Muntakhab Ahadith progress:
+     *   - All six section reading positions
+     *   - The general last-seen record
+     * Safe to call from the main thread.
+     */
+    @MainThread
+    public Future<?> resetAllProgress() {
+        return executor.submit(() -> {
+            try {
+                db.sectionProgressDao().deleteAllProgress();
+            } catch (Exception e) {
+                Log.e(TAG, "Error resetting all progress", e);
+                throw new RuntimeException("Database error resetting all progress", e);
+            }
+        });
+    }
+
+
+
+    // ─── Imported PDFs ────────────────────────────────────────────────────────
+
+    /**
+     * Observable list of all imported PDFs, newest first.
+     * Safe to observe from the UI.
+     */
+    @MainThread
+    public LiveData<List<ImportedPdf>> getAllImportedPdfsLive() {
+        return db.importedPdfDao().getAllLive();
+    }
+
+    /** Adds a new imported PDF to the library. Safe to call from the main thread. */
+    @MainThread
+    public Future<?> addImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().insert(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error adding imported PDF", e);
+                throw new RuntimeException("Database error adding imported PDF", e);
+            }
+        });
+    }
+
+    /** Updates an existing imported PDF record. Safe to call from the main thread. */
+    @MainThread
+    public Future<?> updateImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().update(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating imported PDF", e);
+                throw new RuntimeException("Database error updating imported PDF", e);
+            }
+        });
+    }
+
+    /**
+     * Saves the reading position for an imported PDF.
+     * Calculates progress from currentPage / totalPages.
+     * Safe to call from the main thread.
+     */
+    @MainThread
+    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages, Runnable onSuccess) {
+        return executor.submit(() -> {
+            try {
+                pdf.lastPage   = currentPage;
+                pdf.progress   = totalPages > 0 ? (float) (currentPage + 1) / totalPages : 0f;
+                pdf.updatedAt  = System.currentTimeMillis();
+                db.importedPdfDao().update(pdf);
+                if (onSuccess != null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(onSuccess);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving imported PDF position", e);
+                throw new RuntimeException("Database error saving imported PDF position", e);
+            }
+        });
+    }
+
+    /**
+     * Overload for internal safety saves without a callback.
+     */
+    @MainThread
+    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages) {
+        return saveImportedPdfPosition(pdf, currentPage, totalPages, null);
+    }
+
+    /** Deletes an imported PDF record (does not delete the actual file). Safe from main thread. */
+    @MainThread
+    public Future<?> deleteImportedPdf(ImportedPdf pdf) {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().delete(pdf);
+            } catch (Exception e) {
+                Log.e(TAG, "Error deleting imported PDF", e);
+                throw new RuntimeException("Database error deleting imported PDF", e);
+            }
+        });
+    }
+
+    /** Deletes all imported PDF records. Safe to call from the main thread. */
+    @MainThread
+    public Future<?> deleteAllImportedPdfs() {
+        return executor.submit(() -> {
+            try {
+                db.importedPdfDao().deleteAll();
+            } catch (Exception e) {
+                Log.e(TAG, "Error deleting all imported PDFs", e);
+                throw new RuntimeException("Database error deleting all imported PDFs", e);
+            }
+        });
+    }
+
+    /**
+     * Returns an imported PDF by its database ID.
+     * Must NOT be called on the main thread.
+     */
+    @WorkerThread
+    public ImportedPdf getImportedPdfById(long id) {
+        return db.importedPdfDao().getById(id);
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\ImportedPdfAdapter.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.ListAdapter;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
+
+/**
+ * RecyclerView adapter for the imported PDF library list.
+ * Uses {@link ListAdapter} for efficient diffing.
+ */
+public class ImportedPdfAdapter
+        extends ListAdapter<ImportedPdf, ImportedPdfAdapter.ViewHolder> {
+
+    public interface OnClickListener  { void onClick(ImportedPdf pdf); }
+    public interface OnDeleteListener { void onDelete(ImportedPdf pdf); }
+
+    private final OnClickListener  clickListener;
+    private final OnDeleteListener deleteListener;
+
+    public ImportedPdfAdapter(OnClickListener clickListener, OnDeleteListener deleteListener) {
+        super(DIFF_CALLBACK);
+        this.clickListener  = clickListener;
+        this.deleteListener = deleteListener;
+    }
+
+    @NonNull
+    @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+            .inflate(R.layout.item_imported_pdf, parent, false);
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        ImportedPdf pdf = getItem(position);
+
+        holder.tvName.setText(pdf.displayName);
+
+        int percent = Math.round(pdf.progress * 100f);
+        holder.tvProgress.setText(percent + "%");
+        holder.progressBar.setProgress(percent);
+
+        if (pdf.lastPage > 0) {
+            holder.tvLastPage.setVisibility(View.VISIBLE);
+            holder.tvLastPage.setText(
+                holder.itemView.getContext().getString(R.string.last_seen_page, pdf.lastPage + 1));
+        } else {
+            holder.tvLastPage.setVisibility(View.GONE);
+        }
+
+        holder.itemView.setOnClickListener(v -> clickListener.onClick(pdf));
+
+        holder.btnDelete.setOnClickListener(v -> deleteListener.onDelete(pdf));
+        holder.btnDelete.setContentDescription(
+            holder.itemView.getContext().getString(R.string.cd_delete_pdf, pdf.displayName));
+    }
+
+    // ─── ViewHolder ───────────────────────────────────────────────────────────────
+
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView    tvName;
+        TextView    tvProgress;
+        TextView    tvLastPage;
+        ProgressBar progressBar;
+        Button      btnDelete;
+
+        ViewHolder(View itemView) {
+            super(itemView);
+            tvName      = itemView.findViewById(R.id.tv_pdf_name);
+            tvProgress  = itemView.findViewById(R.id.tv_pdf_progress);
+            tvLastPage  = itemView.findViewById(R.id.tv_last_page);
+            progressBar = itemView.findViewById(R.id.progress_bar);
+            btnDelete   = itemView.findViewById(R.id.btn_delete);
+        }
+    }
+
+    // ─── DiffUtil ─────────────────────────────────────────────────────────────────
+
+    private static final DiffUtil.ItemCallback<ImportedPdf> DIFF_CALLBACK =
+        new DiffUtil.ItemCallback<ImportedPdf>() {
+            @Override
+            public boolean areItemsTheSame(@NonNull ImportedPdf a, @NonNull ImportedPdf b) {
+                return a.id == b.id;
+            }
+
+            @Override
+            public boolean areContentsTheSame(@NonNull ImportedPdf a, @NonNull ImportedPdf b) {
+                return a.lastPage == b.lastPage
+                    && Float.compare(a.progress, b.progress) == 0
+                    && a.displayName.equals(b.displayName);
+            }
+        };
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\ImportedPdfReaderActivity.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+import com.rajat.pdfviewer.PdfRendererView;
+import androidx.recyclerview.widget.RecyclerView;
+import android.view.ViewGroup;
+import android.view.View;
+import android.widget.SeekBar;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * PDF reader for user-imported PDFs from the PDF Library.
+ *
+ * Opens the PDF via a persisted content URI (Storage Access Framework).
+ * Handles inaccessible URIs gracefully – shows an error message instead of crashing.
+ */
+public class ImportedPdfReaderActivity extends AppCompatActivity {
+
+    public static final String EXTRA_PDF_ID = "pdf_id";
+    private static final String STATE_CURRENT_PAGE = "current_page";
+
+    private ReadingRepository repository;
+    private ExecutorService   executor;
+
+    private PdfRendererView pdfRendererView;
+    private TextView        tvPageIndicator;
+    private SeekBar         seekBarPage;
+
+    private RecyclerView    pdfRecyclerView;
+
+    private ImportedPdf importedPdf;
+    private int         currentPage = 0;
+    private int         targetPage  = -1;
+    private boolean     isJumpSettled = false;
+    private int         totalPages  = 0;
+    private boolean     pdfLoaded   = false;
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_imported_pdf_reader);
+
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+
+        repository = ReadingRepository.getInstance(this);
+        executor   = Executors.newSingleThreadExecutor();
+
+        long pdfId = getIntent().getLongExtra(EXTRA_PDF_ID, -1L);
+        if (pdfId == -1L) { finish(); return; }
+
+        bindViews();
+
+        final int restoredPage = (savedInstanceState != null)
+            ? savedInstanceState.getInt(STATE_CURRENT_PAGE, -1) : -1;
+
+        // Load the PDF record from the database on a background thread
+        executor.execute(() -> {
+            try {
+                importedPdf = repository.getImportedPdfById(pdfId);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (importedPdf == null) {
+                        Toast.makeText(this, R.string.error_pdf_not_found, Toast.LENGTH_LONG).show();
+                        finish();
+                        return;
+                    }
+                    if (getSupportActionBar() != null) {
+                        getSupportActionBar().setTitle(importedPdf.displayName);
+                    }
+                    int startPage = (restoredPage >= 0) ? restoredPage : importedPdf.lastPage;
+                    initPdf(startPage);
+                });
+            } catch (Exception e) {
+                android.util.Log.e("ImportedPdfReader", "Error loading imported PDF record", e);
+            }
+        });
+    }
+
+    private void bindViews() {
+        pdfRendererView = findViewById(R.id.pdf_renderer_view);
+        tvPageIndicator  = findViewById(R.id.tv_page_indicator);
+        seekBarPage      = findViewById(R.id.seekbar_page);
+
+        Button btnSave = findViewById(R.id.btn_save_last_seen);
+        btnSave.setOnClickListener(v -> saveCurrentPosition());
+
+        seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && pdfLoaded) {
+                    targetPage = progress;
+                    currentPage = targetPage;
+                    isJumpSettled = false;
+                    jumpToPageSafely(targetPage);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+    }
+
+    private void initPdf(int startPage) {
+        Uri uri;
+        try {
+            uri = Uri.parse(importedPdf.uriString);
+        } catch (Exception e) {
+            showUriError();
+            return;
+        }
+
+        targetPage = Math.max(0, startPage);
+        currentPage = targetPage;
+        isJumpSettled = false;
+
+        pdfRendererView.setStatusListener(new PdfRendererView.StatusCallBack() {
+
+            @Override
+            public void onPdfLoadStart() {
+                tvPageIndicator.setText(R.string.loading_pdf);
+            }
+
+            @Override
+            public void onPdfLoadProgress(int progress, long downloadedBytes, Long totalBytes) { }
+
+            @Override
+            public void onPdfLoadSuccess(String absolutePath) {
+                pdfLoaded = true;
+                pdfRecyclerView = findRecyclerView(pdfRendererView);
+                if (pdfRecyclerView != null) {
+                    RecyclerView.Adapter<?> adapter = pdfRecyclerView.getAdapter();
+                    if (adapter != null) {
+                        seekBarPage.setMax(adapter.getItemCount() - 1);
+                    }
+                }
+
+                if (targetPage >= 0) {
+                    jumpToPageSafely(targetPage);
+                }
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                runOnUiThread(() -> showUriError());
+            }
+
+            @Override
+            public void onPageChanged(int page, int total) {
+                if (!isJumpSettled) {
+                    if (page == targetPage || targetPage < 0) {
+                        isJumpSettled = true;
+                        currentPage = page;
+                    }
+                } else {
+                    currentPage = page;
+                }
+
+                if (total > 0) {
+                    totalPages = total;
+                }
+
+                if (isJumpSettled) {
+                    if (seekBarPage.getMax() != total - 1) {
+                        seekBarPage.setMax(total - 1);
+                    }
+                    seekBarPage.setProgress(page);
+                    tvPageIndicator.setText(getString(R.string.page_of, page + 1, total));
+                }
+            }
+        });
+
+        try {
+            pdfRendererView.initWithUri(uri);
+        } catch (Exception e) {
+            showUriError();
+        }
+    }
+
+    private void saveCurrentPosition() {
+        if (importedPdf != null) {
+            repository.saveImportedPdfPosition(importedPdf, currentPage, totalPages, () -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+    }
+
+    private void showUriError() {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.error_pdf_title)
+            .setMessage(R.string.error_pdf_inaccessible)
+            .setPositiveButton(android.R.string.ok, (d, w) -> finish())
+            .setCancelable(false)
+            .show();
+    }
+
+    // ─── Lifecycle ────────────────────────────────────────────────────────────────
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Safety auto-save
+        if (pdfLoaded && importedPdf != null) {
+            repository.saveImportedPdfPosition(importedPdf, currentPage, totalPages);
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) { finish(); return true; }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_CURRENT_PAGE, currentPage);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        executor.shutdown();
+    }
+
+    private void jumpToPageSafely(int page) {
+        try {
+            if (pdfRendererView != null) {
+                pdfRendererView.jumpToPage(page);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("ImportedPdfReader", "Failed to jump to page", e);
+        }
+    }
+
+    private RecyclerView findRecyclerView(View view) {
+        RecyclerView rv = findRecyclerViewRecursive(view);
+        if (rv == null) {
+            android.util.Log.w("ImportedPdfReader", "findRecyclerView: RecyclerView not found in PdfRendererView. Library internal structure may have changed.");
+        }
+        return rv;
+    }
+
+    private RecyclerView findRecyclerViewRecursive(View view) {
+        if (view instanceof RecyclerView) {
+            return (RecyclerView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                RecyclerView rv = findRecyclerViewRecursive(vg.getChildAt(i));
+                if (rv != null) return rv;
+            }
+        }
+        return null;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\MainActivity.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.cardview.widget.CardView;
+
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.db.SectionProgress;
+import com.moazzam.muntakhabahadith.data.model.Section;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+import com.moazzam.muntakhabahadith.utils.ProgressCalculator;
+import com.moazzam.muntakhabahadith.utils.SectionConfig;
+
+import java.util.List;
+
+public class MainActivity extends AppCompatActivity {
+
+    private ReadingRepository repository;
+
+
+
+    // Progress bars and percentage labels for the six sections
+    private ProgressBar[] progressBars;
+    private TextView[]    progressTexts;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        repository = ReadingRepository.getInstance(this);
+
+
+        bindContinueReading();
+        bindProgressSection();
+        bindSectionButtons();
+        bindPdfLibraryButton();
+    }
+
+
+
+    // ─── Continue Reading ─────────────────────────────────────────────────────────
+
+    private void bindContinueReading() {
+        CardView cardContinue = findViewById(R.id.card_continue_reading);
+        TextView tvContinueSection = findViewById(R.id.tv_continue_section);
+        Button btnContinue = findViewById(R.id.btn_continue_reading);
+
+        repository.getLatestProgressLive().observe(this, latest -> {
+            if (latest != null) {
+                Section section = SectionConfig.getSectionById(latest.sectionId);
+                if (section != null) {
+                    cardContinue.setVisibility(View.VISIBLE);
+                    int sectionRelative = ProgressCalculator.sectionRelativePage(latest.currentPage, section);
+                    tvContinueSection.setText(getString(R.string.page_indicator_simple, section.getTitle(), sectionRelative));
+                    
+                    View.OnClickListener listener = v -> openSection(latest.sectionId);
+                    btnContinue.setOnClickListener(listener);
+                    cardContinue.setOnClickListener(listener);
+                    return;
+                }
+            }
+            cardContinue.setVisibility(View.GONE);
+        });
+    }
+
+    // ─── Progress Section ─────────────────────────────────────────────────────────
+
+    private void bindProgressSection() {
+        progressBars = new ProgressBar[]{
+            findViewById(R.id.progress_kalimah),
+            findViewById(R.id.progress_salah),
+            findViewById(R.id.progress_ilm_zikr),
+            findViewById(R.id.progress_ikram),
+            findViewById(R.id.progress_ikhlas),
+            findViewById(R.id.progress_dawat)
+        };
+        progressTexts = new TextView[]{
+            findViewById(R.id.tv_progress_pct_kalimah),
+            findViewById(R.id.tv_progress_pct_salah),
+            findViewById(R.id.tv_progress_pct_ilm_zikr),
+            findViewById(R.id.tv_progress_pct_ikram),
+            findViewById(R.id.tv_progress_pct_ikhlas),
+            findViewById(R.id.tv_progress_pct_dawat)
+        };
+
+        repository.getAllProgressLive().observe(this, progressList -> {
+            int[] percents = new int[progressBars.length];
+            if (progressList != null) {
+                for (SectionProgress sp : progressList) {
+                    Section section = SectionConfig.getSectionById(sp.sectionId);
+                    if (section != null) {
+                        int index = sectionIndex(sp.sectionId);
+                        if (index >= 0) {
+                            percents[index] = ProgressCalculator.calculateProgressPercent(sp.currentPage, section);
+                        }
+                    }
+                }
+            }
+            for (int i = 0; i < progressBars.length; i++) {
+                if (progressBars[i].getProgress() != percents[i]) {
+                    progressBars[i].setProgress(percents[i]);
+                }
+                String pctString = percents[i] + "%";
+                if (!progressTexts[i].getText().toString().equals(pctString)) {
+                    progressTexts[i].setText(pctString);
+                    progressBars[i].setContentDescription(
+                        getString(R.string.cd_section_progress, SectionConfig.ALL_SECTIONS[i].getTitle(), percents[i]));
+                }
+            }
+        });
+    }
+
+    private int sectionIndex(String sectionId) {
+        for (int i = 0; i < SectionConfig.ALL_SECTIONS.length; i++) {
+            if (SectionConfig.ALL_SECTIONS[i].getId().equals(sectionId)) return i;
+        }
+        return -1;
+    }
+
+    // ─── Section Buttons ──────────────────────────────────────────────────────────
+
+    private void bindSectionButtons() {
+        int[] buttonIds = {
+            R.id.btn_kalimah,
+            R.id.btn_salah,
+            R.id.btn_ilm_zikr,
+            R.id.btn_ikram,
+            R.id.btn_ikhlas,
+            R.id.btn_dawat
+        };
+        String[] sectionIds = {
+            SectionConfig.ID_KALIMAH,
+            SectionConfig.ID_SALAH,
+            SectionConfig.ID_ILM_ZIKR,
+            SectionConfig.ID_IKRAM,
+            SectionConfig.ID_IKHLAS,
+            SectionConfig.ID_DAWAT
+        };
+        for (int i = 0; i < buttonIds.length; i++) {
+            final String id = sectionIds[i];
+            Button btn = findViewById(buttonIds[i]);
+            btn.setOnClickListener(v -> openSection(id));
+        }
+    }
+
+    // ─── PDF Library ──────────────────────────────────────────────────────────────
+
+    private void bindPdfLibraryButton() {
+        Button btn = findViewById(R.id.btn_pdf_library);
+        btn.setOnClickListener(v -> startActivity(
+            new Intent(this, PdfLibraryActivity.class)));
+    }
+
+    // ─── Navigation ───────────────────────────────────────────────────────────────
+
+    /**
+     * Opens a section in the PDF reader.
+     *
+     * @param sectionId the section to open
+     */
+    private void openSection(String sectionId) {
+        Intent intent = new Intent(this, SectionReaderActivity.class);
+        intent.putExtra(SectionReaderActivity.EXTRA_SECTION_ID, sectionId);
+        startActivity(intent);
+    }
+
+    // ─── Options Menu ─────────────────────────────────────────────────────────────
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\PdfLibraryActivity.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.TextView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.db.ImportedPdf;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class PdfLibraryActivity extends AppCompatActivity {
+
+    private ReadingRepository repository;
+    private ExecutorService executor;
+    private ImportedPdfAdapter adapter;
+    private TextView tvEmpty;
+
+    /** SAF document picker launcher */
+    private final ActivityResultLauncher<Intent> pickPdfLauncher =
+        registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK
+                        && result.getData() != null) {
+                    Uri uri = result.getData().getData();
+                    if (uri != null) handlePickedPdf(uri);
+                }
+            }
+        );
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_pdf_library);
+
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle(R.string.title_pdf_library);
+        }
+
+        repository = ReadingRepository.getInstance(this);
+        executor = Executors.newSingleThreadExecutor();
+        tvEmpty    = findViewById(R.id.tv_empty);
+
+        setupRecyclerView();
+        observePdfs();
+
+        FloatingActionButton fabAdd = findViewById(R.id.fab_add_pdf);
+        fabAdd.setOnClickListener(v -> openDocumentPicker());
+    }
+
+    private void setupRecyclerView() {
+        adapter = new ImportedPdfAdapter(
+            pdf -> openImportedPdf(pdf),
+            pdf -> confirmDelete(pdf)
+        );
+        RecyclerView rv = findViewById(R.id.recycler_view);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        rv.setAdapter(adapter);
+    }
+
+    private void observePdfs() {
+        repository.getAllImportedPdfsLive().observe(this, pdfs -> {
+            adapter.submitList(pdfs);
+            boolean empty = (pdfs == null || pdfs.isEmpty());
+            tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+        });
+    }
+
+    // ─── Document Picker (Storage Access Framework) ───────────────────────────────
+
+    private void openDocumentPicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        // Request persistent read permission so we can re-open the file later
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+            | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        pickPdfLauncher.launch(intent);
+    }
+
+    private void handlePickedPdf(Uri uri) {
+        // Persist URI permission across app restarts
+        try {
+            getContentResolver().takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException e) {
+            // Permission may already be held or not grantable – continue anyway
+        }
+
+        executor.execute(() -> {
+            try {
+                String displayName = resolveDisplayName(uri);
+                long now = System.currentTimeMillis();
+                ImportedPdf pdf = new ImportedPdf(displayName, uri.toString(), 0, 0f, now, now);
+                repository.addImportedPdf(pdf);
+            } catch (Exception e) {
+                android.util.Log.e("PdfLibraryActivity", "Error adding imported PDF", e);
+            }
+        });
+    }
+
+    private String resolveDisplayName(Uri uri) {
+        try (android.database.Cursor cursor = getContentResolver().query(
+                uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME},
+                null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) return cursor.getString(idx);
+            }
+        } catch (Exception ignored) { }
+        // Fallback to last path segment
+        String segment = uri.getLastPathSegment();
+        return (segment != null && !segment.isEmpty()) ? segment : "Document";
+    }
+
+    // ─── Navigation ───────────────────────────────────────────────────────────────
+
+    private void openImportedPdf(ImportedPdf pdf) {
+        Intent intent = new Intent(this, ImportedPdfReaderActivity.class);
+        intent.putExtra(ImportedPdfReaderActivity.EXTRA_PDF_ID, pdf.id);
+        startActivity(intent);
+    }
+
+    private void confirmDelete(ImportedPdf pdf) {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_delete_title)
+            .setMessage(getString(R.string.dialog_delete_message, pdf.displayName))
+            .setPositiveButton(R.string.action_delete, (d, w) -> {
+                try {
+                    getContentResolver().releasePersistableUriPermission(
+                        Uri.parse(pdf.uriString), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (SecurityException ignored) {}
+                repository.deleteImportedPdf(pdf);
+            })
+            .setNegativeButton(R.string.action_cancel, null)
+            .show();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) { finish(); return true; }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (executor != null) {
+            executor.shutdown();
+        }
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\SectionReaderActivity.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.os.Bundle;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.db.SectionProgress;
+import com.moazzam.muntakhabahadith.data.model.Section;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+import com.moazzam.muntakhabahadith.utils.ProgressCalculator;
+import com.moazzam.muntakhabahadith.utils.SectionConfig;
+import com.rajat.pdfviewer.PdfRendererView;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.io.File;
+import com.moazzam.muntakhabahadith.utils.AssetCopier;
+import androidx.recyclerview.widget.RecyclerView;
+import android.view.ViewGroup;
+import android.widget.SeekBar;
+
+/**
+ * PDF reader for the six main sections of Muntakhab Ahadith.
+ *
+ * Behaviour:
+ *   - Checks for a saved position and asks the user whether to continue or start over.
+ *   - If no saved position exists, opens at the section's first page.
+ *   - Auto-saves the current page on onPause() (safety save).
+ *   - Provides a manual "Save Last Seen" button.
+ *   - Survives process death via onSaveInstanceState.
+ */
+public class SectionReaderActivity extends AppCompatActivity {
+
+    /** Intent extras */
+    public static final String EXTRA_SECTION_ID = "section_id";
+
+    private static final String STATE_CURRENT_PAGE = "current_page";
+
+    private Section           section;
+    private ReadingRepository repository;
+    private ExecutorService   executor;
+
+    private PdfRendererView pdfRendererView;
+    private TextView        tvPageIndicator;
+    private TextView        tvSectionTitle;
+    private SeekBar         seekBarPage;
+
+    private RecyclerView    pdfRecyclerView;
+
+    private int     currentPage = 0;
+    private int     targetPage  = -1;
+    private boolean isJumpSettled = false;
+    private int     totalPages  = 0;
+    private boolean pdfLoaded   = false;
+
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_section_reader);
+
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+
+        repository = ReadingRepository.getInstance(this);
+        executor   = Executors.newSingleThreadExecutor();
+
+        // Resolve section
+        String sectionId = getIntent().getStringExtra(EXTRA_SECTION_ID);
+        section = SectionConfig.getSectionById(sectionId);
+        if (section == null) {
+            Toast.makeText(this, R.string.error_invalid_section, Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        bindViews();
+
+        // Decide starting page
+        if (savedInstanceState != null) {
+            // Rotation: restore the exact page we were on
+            currentPage = savedInstanceState.getInt(STATE_CURRENT_PAGE, section.getPdfStartPage());
+            initPdf(currentPage);
+        } else {
+            // Check saved progress in background, then decide
+            loadSavedPositionAndDecide();
+        }
+    }
+
+    // ─── View Binding ─────────────────────────────────────────────────────────────
+
+    private void bindViews() {
+        pdfRendererView = findViewById(R.id.pdf_renderer_view);
+        tvPageIndicator = findViewById(R.id.tv_page_indicator);
+        tvSectionTitle  = findViewById(R.id.tv_section_title);
+        seekBarPage     = findViewById(R.id.seekbar_page);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(section.getTitle());
+        }
+        tvSectionTitle.setText(section.getTitle());
+
+        // Manual save button
+        Button btnSave = findViewById(R.id.btn_save_last_seen);
+        btnSave.setOnClickListener(v -> saveCurrentPosition());
+
+        // Start from beginning button
+        Button btnStart = findViewById(R.id.btn_start_beginning);
+        btnStart.setOnClickListener(v -> {
+            targetPage = section.getPdfStartPage();
+            currentPage = targetPage;
+            isJumpSettled = false;
+            if (pdfLoaded) {
+                jumpToPageSafely(targetPage);
+            }
+        });
+
+        // Seekbar logic
+        seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && pdfLoaded) {
+                    targetPage = section.getPdfStartPage() + progress;
+                    currentPage = targetPage;
+                    isJumpSettled = false;
+                    jumpToPageSafely(targetPage);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+    }
+
+    // ─── Saved Position Logic ─────────────────────────────────────────────────────
+
+    private void loadSavedPositionAndDecide() {
+        executor.execute(() -> {
+            try {
+                SectionProgress saved = repository.getPosition(section.getId());
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (saved != null && saved.currentPage > section.getPdfStartPage()) {
+                        showContinueDialog(saved.currentPage);
+                    } else {
+                        initPdf(section.getPdfStartPage());
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("SectionReaderActivity", "Error loading saved position", e);
+            }
+        });
+    }
+
+    private void showContinueDialog(int savedPage) {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_continue_title)
+            .setMessage(getString(R.string.dialog_continue_message, savedPage + 1))
+            .setPositiveButton(R.string.action_continue, (d, w) -> {
+                currentPage = savedPage;
+                initPdf(savedPage);
+            })
+            .setNegativeButton(R.string.action_start_beginning, (d, w) -> {
+                currentPage = section.getPdfStartPage();
+                initPdf(section.getPdfStartPage());
+            })
+            .setCancelable(false)
+            .show();
+    }
+
+    // ─── PDF Initialisation ───────────────────────────────────────────────────────
+
+    private void initPdf(int startPage) {
+        targetPage = SectionConfig.clampToSection(startPage, section);
+        currentPage = targetPage;
+        isJumpSettled = false;
+
+        pdfRendererView.setStatusListener(new PdfRendererView.StatusCallBack() {
+
+            @Override
+            public void onPdfLoadStart() {
+                tvPageIndicator.setText(R.string.loading_pdf);
+            }
+
+            @Override
+            public void onPdfLoadProgress(int progress, long downloadedBytes, Long totalBytes) {
+                // Not applicable for local asset loading
+            }
+
+            @Override
+            public void onPdfLoadSuccess(String absolutePath) {
+                pdfLoaded = true;
+                pdfRecyclerView = findRecyclerView(pdfRendererView);
+                if (pdfRecyclerView != null) {
+                    // Update seekbar max to section length
+                    seekBarPage.setMax(section.getPageCount() - 1);
+                }
+                // Jump safely using the library's method
+                if (targetPage >= 0) {
+                    jumpToPageSafely(targetPage);
+                }
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                runOnUiThread(() -> showPdfError(
+                    error.getMessage() != null ? error.getMessage() : "Unknown error"));
+            }
+
+            @Override
+            public void onPageChanged(int page, int total) {
+                // Guard against scrolling outside the section boundaries ONLY after jump settles
+                if (isJumpSettled && (page < section.getPdfStartPage() || page > section.getPdfEndPage())) {
+                    int clamped = SectionConfig.clampToSection(page, section);
+                    targetPage = clamped;
+                    currentPage = clamped;
+                    isJumpSettled = false;
+                    jumpToPageSafely(clamped);
+                    return;
+                }
+
+                if (!isJumpSettled) {
+                    // Suppress early page-changed noise until we hit target
+                    if (page == targetPage || targetPage < 0) {
+                        isJumpSettled = true;
+                        currentPage = page;
+                    }
+                } else {
+                    currentPage = page;
+                }
+
+                if (isJumpSettled) {
+                    totalPages  = total;
+                    int expectedMax = section.getPageCount() - 1;
+                    if (seekBarPage.getMax() != expectedMax) {
+                        seekBarPage.setMax(expectedMax);
+                    }
+                    // Update seekbar without triggering onProgressChanged listener's scroll
+                    seekBarPage.setProgress(page - section.getPdfStartPage());
+                    updatePageIndicator(page, total);
+                }
+            }
+        });
+
+        // P0-2 fix: Extract asset to cache, then use initWithFile
+        executor.execute(() -> {
+            try {
+                File pdfFile = AssetCopier.copyAssetToCache(this, SectionConfig.PDF_ASSET_NAME);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    try {
+                        pdfRendererView.initWithFile(pdfFile);
+                    } catch (Exception e) {
+                        showPdfError(e.getMessage() != null ? e.getMessage() : "Failed to load PDF");
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("SectionReaderActivity", "Error copying asset to cache", e);
+                runOnUiThread(() -> showPdfError(e.getMessage() != null ? e.getMessage() : "Failed to extract PDF"));
+            }
+        });
+    }
+
+    // ─── UI Updates ───────────────────────────────────────────────────────────────
+
+    private void updatePageIndicator(int page, int total) {
+        int sectionRelative = ProgressCalculator.sectionRelativePage(page, section);
+        int sectionTotal    = section.getPageCount();
+        int percent         = ProgressCalculator.calculateProgressPercent(page, section);
+        tvPageIndicator.setText(getString(
+            R.string.page_indicator,
+            page + 1, total,
+            sectionRelative, sectionTotal,
+            percent));
+    }
+
+    // ─── Persistence ──────────────────────────────────────────────────────────────
+
+    private void saveCurrentPosition() {
+        repository.savePosition(section.getId(), currentPage, () -> {
+            if (!isFinishing() && !isDestroyed()) {
+                Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    // ─── Error Handling ───────────────────────────────────────────────────────────
+
+    private void showPdfError(String message) {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.error_pdf_title)
+            .setMessage(getString(R.string.error_pdf_message, message))
+            .setPositiveButton(android.R.string.ok, (d, w) -> finish())
+            .setCancelable(false)
+            .show();
+    }
+
+    // ─── Lifecycle ────────────────────────────────────────────────────────────────
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Safety auto-save: persist current position whenever the activity loses focus.
+        // This protects against the user forgetting to press "Save Last Seen".
+        if (pdfLoaded && section != null) {
+            repository.savePosition(section.getId(), currentPage);
+        }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_CURRENT_PAGE, currentPage);
+    }
+
+    @Override
+            protected void onDestroy() {
+                super.onDestroy();
+                executor.shutdown();
+            }
+        
+            private void jumpToPageSafely(int page) {
+                try {
+                    if (pdfRendererView != null) {
+                        pdfRendererView.jumpToPage(page);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("SectionReaderActivity", "Failed to jump to page", e);
+                }
+            }
+        
+            private RecyclerView findRecyclerView(View view) {
+        RecyclerView rv = findRecyclerViewRecursive(view);
+        if (rv == null) {
+            android.util.Log.w("SectionReaderActivity", "findRecyclerView: RecyclerView not found in PdfRendererView. Library internal structure may have changed.");
+        }
+        return rv;
+    }
+
+    private RecyclerView findRecyclerViewRecursive(View view) {
+        if (view instanceof RecyclerView) {
+            return (RecyclerView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) view;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                RecyclerView rv = findRecyclerViewRecursive(vg.getChildAt(i));
+                if (rv != null) return rv;
+            }
+        }
+        return null;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\ui\SettingsActivity.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.ui;
+
+import android.os.Bundle;
+import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.moazzam.muntakhabahadith.BuildConfig;
+import com.moazzam.muntakhabahadith.R;
+import com.moazzam.muntakhabahadith.data.repository.ReadingRepository;
+
+import android.content.Intent;
+import android.content.UriPermission;
+
+/**
+ * Minimal Settings screen.
+ *
+ * Provides:
+ *   - App version display
+ *   - Reset all Muntakhab Ahadith reading progress (with confirmation)
+ *   - Clear the imported PDF library (with confirmation)
+ *
+ * Does NOT contain: account settings, cloud settings, or any network configuration.
+ */
+public class SettingsActivity extends AppCompatActivity {
+
+    private ReadingRepository repository;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_settings);
+
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle(R.string.title_settings);
+        }
+
+        repository = ReadingRepository.getInstance(this);
+
+        // Show app version
+        TextView tvVersion = findViewById(R.id.tv_version);
+        tvVersion.setText(getString(R.string.version_name, BuildConfig.VERSION_NAME));
+
+        // Reset all Muntakhab Ahadith progress
+        Button btnResetAll = findViewById(R.id.btn_reset_all_progress);
+        btnResetAll.setOnClickListener(v -> confirmResetAll());
+
+        // Clear imported PDF library
+        Button btnResetImported = findViewById(R.id.btn_reset_imported_pdfs);
+        btnResetImported.setOnClickListener(v -> confirmResetImported());
+    }
+
+    private void confirmResetAll() {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_reset_title)
+            .setMessage(R.string.dialog_reset_all_message)
+            .setPositiveButton(R.string.action_reset, (d, w) -> {
+                repository.resetAllProgress();
+                Toast.makeText(this, R.string.progress_reset_done, Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(R.string.action_cancel, null)
+            .show();
+    }
+
+    private void confirmResetImported() {
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_reset_title)
+            .setMessage(R.string.dialog_reset_imported_message)
+            .setPositiveButton(R.string.action_reset, (d, w) -> {
+                for (UriPermission permission : getContentResolver().getPersistedUriPermissions()) {
+                    try {
+                        getContentResolver().releasePersistableUriPermission(permission.getUri(), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    } catch (SecurityException ignored) {}
+                }
+                repository.deleteAllImportedPdfs();
+                Toast.makeText(this, R.string.imported_pdfs_cleared, Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(R.string.action_cancel, null)
+            .show();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) { finish(); return true; }
+        return super.onOptionsItemSelected(item);
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\utils\AssetCopier.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.utils;
+
+import android.content.Context;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+import java.io.IOException;
+
+public class AssetCopier {
+
+    /**
+     * Copies a file from assets to the app's cache directory and returns the File.
+     */
+    public static File copyAssetToCache(Context context, String assetFileName) throws IOException {
+        File cachedFile = new File(context.getCacheDir(), assetFileName);
+        
+        // Return existing if already copied
+        if (cachedFile.exists() && cachedFile.length() > 0) {
+            return cachedFile;
+        }
+
+        File tempFile = new File(context.getCacheDir(), assetFileName + ".tmp");
+        try (InputStream in = context.getAssets().open(assetFileName);
+             OutputStream out = new FileOutputStream(tempFile)) {
+             
+            byte[] buffer = new byte[1024 * 4];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+        }
+        
+        if (!tempFile.renameTo(cachedFile)) {
+            throw new IOException("Failed to rename temporary asset file to cache file");
+        }
+        return cachedFile;
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\utils\ProgressCalculator.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.utils;
+
+import com.moazzam.muntakhabahadith.data.model.Section;
+
+/**
+ * Pure utility class for calculating reading progress within a section.
+ *
+ * Progress formula:
+ *   progress = (currentPage - sectionStartPage) / (sectionEndPage - sectionStartPage)
+ *
+ * Result is always clamped to [0.0, 1.0].
+ */
+public final class ProgressCalculator {
+
+    private ProgressCalculator() { /* no instances */ }
+
+    /**
+     * Calculates reading progress as a float in [0.0, 1.0].
+     *
+     * @param currentPage 0-based PDF page index of the current page
+     * @param section     the section being read
+     * @return progress value between 0.0 and 1.0
+     */
+    public static float calculateProgress(int currentPage, Section section) {
+        int start = section.getPdfStartPage();
+        int end   = section.getPdfEndPage();
+        int total = end - start;
+
+        if (total <= 0) return 0f;
+
+        float raw = (float)(currentPage - start) / (float) total;
+        return clamp(raw, 0f, 1f);
+    }
+
+    /**
+     * Calculates reading progress as an integer percentage [0, 100].
+     *
+     * @param currentPage 0-based PDF page index of the current page
+     * @param section     the section being read
+     * @return integer percentage between 0 and 100
+     */
+    public static int calculateProgressPercent(int currentPage, Section section) {
+        return Math.round(calculateProgress(currentPage, section) * 100f);
+    }
+
+    /**
+     * Returns a 1-based page number relative to the section start.
+     * For example, if the section starts at PDF page 143 and the current page is 143,
+     * this returns 1. If the current page is 150, this returns 8.
+     *
+     * @param rawPdfPage 0-based absolute PDF page index
+     * @param section    the section being read
+     * @return section-relative 1-based page number, clamped to [1, section.pageCount]
+     */
+    public static int sectionRelativePage(int rawPdfPage, Section section) {
+        int relative = rawPdfPage - section.getPdfStartPage() + 1;
+        return Math.max(1, Math.min(relative, section.getPageCount()));
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+}
+\n================================================================================\nFILE: app\src\main\java\com\moazzam\muntakhabahadith\utils\SectionConfig.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith.utils;
+
+import com.moazzam.muntakhabahadith.data.model.Section;
+
+/**
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║               MUNTAKHAB AHADITH – SECTION PAGE CONFIGURATION               ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║                                                                              ║
+ * ║  PAGE NUMBERING NOTES                                                        ║
+ * ║  ──────────────────────────────────────────────────────────────────────────  ║
+ * ║  The PDF has two distinct page numbering systems:                            ║
+ * ║                                                                              ║
+ * ║  1. Printed book page numbers – visible in the book's content (1-based).    ║
+ * ║  2. PDF viewer page indexes   – the 0-based index used by the viewer lib.   ║
+ * ║                                                                              ║
+ * ║  These are NOT the same.                                                     ║
+ * ║                                                                              ║
+ * ║  The PDF contains 15 front-matter pages (cover, table of contents, etc.)    ║
+ * ║  before the book's printed page 1 begins.                                   ║
+ * ║                                                                              ║
+ * ║  Conversion: pdfViewerPage (0-based) = printedPage + 14                    ║
+ * ║                                                                              ║
+ * ║  Verified cross-references (from PDF viewer + screenshots):                 ║
+ * ║    • Salah PDF page 143 → printed page 129  ✓                               ║
+ * ║    • Ikram-e-Muslim PDF page 429 → printed page 415  ✓                      ║
+ * ║    • Dawat wa Tabligh PDF page 611 → printed page 597  ✓ (user confirmed)   ║
+ * ║                                                                              ║
+ * ║  ALL PAGE VALUES IN THIS CLASS USE 0-BASED PDF VIEWER INDEXING.             ║
+ * ║                                                                              ║
+ * ║  Total PDF pages: 735  (page indexes 0 – 734)                               ║
+ * ║                                                                              ║
+ * ║  HOW TO UPDATE                                                               ║
+ * ║  ──────────────────────────────────────────────────────────────────────────  ║
+ * ║  If the PDF file changes or the page mapping needs adjustment,               ║
+ * ║  update ONLY the constants below. Do NOT change page numbers anywhere else. ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ */
+public final class SectionConfig {
+
+    private SectionConfig() { /* utility class – no instances */ }
+
+    // ─── Asset file ────────────────────────────────────────────────────────────
+    /** File name of the bundled PDF inside app/src/main/assets/ */
+    public static final String PDF_ASSET_NAME = "muntakhab_ahadith.pdf";
+
+    /** Total pages in the PDF (0-based page indexes: 0 to TOTAL_PDF_PAGES - 1) */
+    public static final int TOTAL_PDF_PAGES   = 735;
+
+    // ─── Section IDs (stable, used as database primary keys) ──────────────────
+    public static final String ID_KALIMAH  = "kalimah_tayyibah";
+    public static final String ID_SALAH    = "salah";
+    public static final String ID_ILM_ZIKR = "ilm_and_zikr";
+    public static final String ID_IKRAM    = "ikram_e_muslim";
+    public static final String ID_IKHLAS   = "ikhlas_e_niyyat";
+    public static final String ID_DAWAT    = "dawat_wa_tabligh";
+
+    // ─── 0-based PDF page indexes for each section ────────────────────────────
+    //     Printed book pages shown for reference in comments.
+    //     Update ONLY here if the mapping changes.
+
+    public static final int KALIMAH_START_PAGE  = 15;   // printed 1
+    public static final int KALIMAH_END_PAGE    = 142;  // printed 128
+
+    public static final int SALAH_START_PAGE    = 143;  // printed 129
+    public static final int SALAH_END_PAGE      = 268;  // printed 254
+
+    public static final int ILM_ZIKR_START_PAGE = 269;  // printed 255
+    public static final int ILM_ZIKR_END_PAGE   = 428;  // printed 414
+
+    public static final int IKRAM_START_PAGE    = 429;  // printed 415
+    public static final int IKRAM_END_PAGE      = 573;  // printed 559
+
+    public static final int IKHLAS_START_PAGE   = 574;  // printed 560
+    public static final int IKHLAS_END_PAGE     = 610;  // printed 596
+
+    public static final int DAWAT_START_PAGE    = 611;  // printed 597
+    public static final int DAWAT_END_PAGE      = 734;  // printed end
+
+    // ─── Pre-built Section objects (used throughout the app) ──────────────────
+
+    public static final Section KALIMAH  = new Section(
+            ID_KALIMAH,  "Kalimah Tayyibah", KALIMAH_START_PAGE,  KALIMAH_END_PAGE);
+
+    public static final Section SALAH    = new Section(
+            ID_SALAH,    "Salah",             SALAH_START_PAGE,    SALAH_END_PAGE);
+
+    public static final Section ILM_ZIKR = new Section(
+            ID_ILM_ZIKR, "Ilm and Zikr",     ILM_ZIKR_START_PAGE, ILM_ZIKR_END_PAGE);
+
+    public static final Section IKRAM    = new Section(
+            ID_IKRAM,    "Ikram-e-Muslim",    IKRAM_START_PAGE,    IKRAM_END_PAGE);
+
+    public static final Section IKHLAS   = new Section(
+            ID_IKHLAS,   "Ikhlas-e-Niyyat",  IKHLAS_START_PAGE,   IKHLAS_END_PAGE);
+
+    public static final Section DAWAT    = new Section(
+            ID_DAWAT,    "Dawat wa Tabligh",  DAWAT_START_PAGE,    DAWAT_END_PAGE);
+
+    /** All six sections in reading order. */
+    public static final Section[] ALL_SECTIONS = {
+        KALIMAH, SALAH, ILM_ZIKR, IKRAM, IKHLAS, DAWAT
+    };
+
+    // ─── Lookup helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Returns the Section for the given ID, or {@code null} if unknown.
+     */
+    public static Section getSectionById(String sectionId) {
+        if (sectionId == null) return null;
+        for (Section s : ALL_SECTIONS) {
+            if (s.getId().equals(sectionId)) return s;
+        }
+        return null;
+    }
+
+    /**
+     * Clamps a PDF page index to the valid range of the given section.
+     */
+    public static int clampToSection(int page, Section section) {
+        if (page < section.getPdfStartPage()) return section.getPdfStartPage();
+        if (page > section.getPdfEndPage())   return section.getPdfEndPage();
+        return page;
+    }
+
+    /**
+     * Clamps a PDF page index to the valid overall PDF range [0, TOTAL_PDF_PAGES - 1].
+     */
+    public static int clampToValidRange(int page) {
+        if (page < 0)                  return 0;
+        if (page >= TOTAL_PDF_PAGES)   return TOTAL_PDF_PAGES - 1;
+        return page;
+    }
+}
+\n================================================================================\nFILE: app\src\main\res\drawable\ic_launcher_background.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M0,0h108v108h-108z" />
+</vector>
+\n================================================================================\nFILE: app\src\main\res\drawable\ic_launcher_foreground.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#FFFFFF">
+    <group android:scaleX="3.375" android:scaleY="3.375" android:translateX="13.5" android:translateY="13.5">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M18,2H6c-1.1,0 -2,0.9 -2,2v16c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM6,4h5v8l-2.5,-1.5L6,12V4z"/>
+    </group>
+</vector>
+\n================================================================================\nFILE: app\src\main\res\layout\activity_imported_pdf_reader.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="4dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:titleTextColor="@color/on_primary" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Page indicator bar -->
+    <TextView
+        android:id="@+id/tv_page_indicator"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/spacing_small"
+        android:background="@color/surface"
+        android:elevation="2dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_size_small"
+        android:gravity="center"
+        android:text="@string/loading_pdf" />
+
+    <!-- PDF Viewer -->
+    <com.rajat.pdfviewer.PdfRendererView
+        android:id="@+id/pdf_renderer_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Seekbar for fast scrolling -->
+    <SeekBar
+        android:id="@+id/seekbar_page"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_small"
+        android:layout_marginBottom="@dimen/spacing_small"
+        android:layout_marginStart="@dimen/spacing_medium"
+        android:layout_marginEnd="@dimen/spacing_medium" />
+
+    <!-- Save button at bottom -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/spacing_small"
+        android:background="@color/surface"
+        android:elevation="4dp"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_save_last_seen"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_target_min"
+            android:text="@string/btn_save_last_seen"
+            android:backgroundTint="@color/primary"
+            android:textColor="@color/on_primary" />
+    </LinearLayout>
+
+</LinearLayout>
+\n================================================================================\nFILE: app\src\main\res\layout\activity_main.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- Toolbar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="4dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:titleTextColor="@color/on_primary"
+            app:title="@string/app_name" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Scrollable content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_medium">
+
+
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!--   CONTINUE READING CARD                           -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_continue_reading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/primary"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/action_continue"
+                            android:textColor="@color/on_primary"
+                            android:textSize="@dimen/text_size_small"
+                            android:textStyle="bold"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.12" />
+                        <TextView
+                            android:id="@+id/tv_continue_section"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Section Name"
+                            android:textColor="@color/on_primary"
+                            android:textSize="@dimen/text_size_body" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_continue_reading"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/action_continue"
+                        android:textColor="@color/on_primary"
+                        app:rippleColor="@color/primary_light" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!--   YOUR PROGRESS CARD                              -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/spacing_medium"
+                        android:text="@string/title_your_progress"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="@dimen/text_size_small"
+                        android:textStyle="bold"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.12" />
+
+                    <!-- Kalimah row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="@dimen/spacing_small">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_kalimah"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_kalimah"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_kalimah"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                    <!-- Salah row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="@dimen/spacing_small">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_salah"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_salah"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_salah"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                    <!-- Ilm and Zikr row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="@dimen/spacing_small">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_ilm_zikr"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_ilm_zikr"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_ilm_zikr"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                    <!-- Ikram-e-Muslim row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="@dimen/spacing_small">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_ikram"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_ikram"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_ikram"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                    <!-- Ikhlas-e-Niyyat row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:layout_marginBottom="@dimen/spacing_small">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_ikhlas"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_ikhlas"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_ikhlas"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                    <!-- Dawat wa Tabligh row -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1.3" android:text="@string/section_dawat"
+                            android:textColor="@color/text_primary" android:textSize="@dimen/text_size_caption" />
+                        <ProgressBar android:id="@+id/progress_dawat"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="0dp" android:layout_height="@dimen/progress_bar_height"
+                            android:layout_weight="1.5" android:layout_marginStart="@dimen/spacing_small"
+                            android:layout_marginEnd="@dimen/spacing_small"
+                            android:max="100" android:progress="0"
+                            android:progressTint="@color/progress_color"
+                            android:progressBackgroundTint="@color/progress_track" />
+                        <TextView android:id="@+id/tv_progress_pct_dawat"
+                            android:layout_width="36dp" android:layout_height="wrap_content"
+                            android:text="0%" android:textColor="@color/text_secondary"
+                            android:textSize="@dimen/text_size_small" android:gravity="end" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!--   SIX QUALITIES – SECTION BUTTONS                 -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/spacing_small"
+                        android:text="@string/title_six_qualities"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="@dimen/text_size_small"
+                        android:textStyle="bold"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.12" />
+
+                    <Button
+                        android:id="@+id/btn_kalimah"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_kalimah"
+                        android:contentDescription="@string/section_kalimah" />
+
+                    <Button
+                        android:id="@+id/btn_salah"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_salah"
+                        android:contentDescription="@string/section_salah" />
+
+                    <Button
+                        android:id="@+id/btn_ilm_zikr"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_ilm_zikr"
+                        android:contentDescription="@string/section_ilm_zikr" />
+
+                    <Button
+                        android:id="@+id/btn_ikram"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_ikram"
+                        android:contentDescription="@string/section_ikram" />
+
+                    <Button
+                        android:id="@+id/btn_ikhlas"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_ikhlas"
+                        android:contentDescription="@string/section_ikhlas" />
+
+                    <Button
+                        android:id="@+id/btn_dawat"
+                        style="@style/Widget.MuntakhabAhadith.SectionButton"
+                        android:text="@string/section_dawat"
+                        android:contentDescription="@string/section_dawat" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ══════════════════════════════════════════════════ -->
+            <!--   PDF LIBRARY BUTTON                              -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_pdf_library"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/section_button_height"
+                android:layout_marginBottom="@dimen/spacing_large"
+                android:text="@string/btn_pdf_library"
+                android:textColor="@color/primary"
+                app:strokeColor="@color/primary"
+                app:iconTint="@color/primary" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
+\n================================================================================\nFILE: app\src\main\res\layout\activity_pdf_library.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- Toolbar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="4dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:titleTextColor="@color/on_primary" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Empty state message (hidden when list has items) -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="@string/no_pdfs_added"
+        android:textColor="@color/text_hint"
+        android:textSize="@dimen/text_size_body"
+        android:gravity="center"
+        android:padding="@dimen/spacing_large"
+        android:visibility="gone" />
+
+    <!-- List of imported PDFs -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:padding="@dimen/spacing_small"
+        android:clipToPadding="false" />
+
+    <!-- FAB: Add PDF -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_add_pdf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/spacing_large"
+        android:contentDescription="@string/add_pdf"
+        app:srcCompat="@android:drawable/ic_input_add"
+        app:backgroundTint="@color/primary"
+        app:tint="@color/on_primary" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+\n================================================================================\nFILE: app\src\main\res\layout\activity_section_reader.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- Toolbar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="4dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:titleTextColor="@color/on_primary" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Section title and page indicator bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_small"
+        android:background="@color/surface"
+        android:elevation="2dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_section_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_size_caption"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tv_page_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_size_small"
+            android:layout_marginStart="@dimen/spacing_small" />
+    </LinearLayout>
+
+    <!-- PDF Viewer – fills the available space -->
+    <com.rajat.pdfviewer.PdfRendererView
+        android:id="@+id/pdf_renderer_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Seekbar for fast scrolling -->
+    <SeekBar
+        android:id="@+id/seekbar_page"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/spacing_small"
+        android:layout_marginBottom="@dimen/spacing_small"
+        android:layout_marginStart="@dimen/spacing_medium"
+        android:layout_marginEnd="@dimen/spacing_medium" />
+
+    <!-- Bottom action bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="@dimen/spacing_small"
+        android:background="@color/surface"
+        android:elevation="4dp"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_start_beginning"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/touch_target_min"
+            android:layout_weight="1"
+            android:layout_marginEnd="@dimen/spacing_small"
+            android:text="@string/btn_start_beginning"
+            android:textColor="@color/primary"
+            android:textSize="@dimen/text_size_small"
+            app:strokeColor="@color/primary" />
+
+        <Button
+            android:id="@+id/btn_save_last_seen"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/touch_target_min"
+            android:layout_weight="1"
+            android:text="@string/btn_save_last_seen"
+            android:backgroundTint="@color/primary"
+            android:textColor="@color/on_primary"
+            android:textSize="@dimen/text_size_small" />
+    </LinearLayout>
+
+</LinearLayout>
+\n================================================================================\nFILE: app\src\main\res\layout\activity_settings.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="4dp">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/primary"
+            app:titleTextColor="@color/on_primary" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/spacing_medium">
+
+            <!-- About / Version card -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/spacing_tiny"
+                        android:text="@string/title_about"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="@dimen/text_size_small"
+                        android:textStyle="bold"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.12" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/app_name"
+                        android:textColor="@color/text_primary"
+                        android:textSize="@dimen/text_size_title"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_version"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/text_size_caption" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Reset Muntakhab Ahadith Progress -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/spacing_small"
+                        android:text="@string/app_name"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="@dimen/text_size_small"
+                        android:textStyle="bold"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.12" />
+
+                    <Button
+                        android:id="@+id/btn_reset_all_progress"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/touch_target_min"
+                        android:text="@string/btn_reset_all_progress"
+                        android:textColor="@color/primary"
+                        app:strokeColor="@color/primary" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Reset Imported PDF Library -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="@dimen/spacing_small"
+                        android:text="@string/title_pdf_library"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="@dimen/text_size_small"
+                        android:textStyle="bold"
+                        android:textAllCaps="true"
+                        android:letterSpacing="0.12" />
+
+                    <Button
+                        android:id="@+id/btn_reset_imported_pdfs"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="@dimen/touch_target_min"
+                        android:text="@string/btn_reset_imported"
+                        android:textColor="@color/primary"
+                        app:strokeColor="@color/primary" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
+\n================================================================================\nFILE: app\src\main\res\layout\item_imported_pdf.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="@dimen/spacing_small"
+    app:cardBackgroundColor="@color/surface"
+    app:cardCornerRadius="@dimen/card_corner_radius"
+    app:cardElevation="@dimen/card_elevation">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/spacing_medium">
+
+        <!-- PDF name -->
+        <TextView
+            android:id="@+id/tv_pdf_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_size_body"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- Last seen page (hidden if never opened) -->
+        <TextView
+            android:id="@+id/tv_last_page"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_tiny"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_size_caption"
+            android:visibility="gone" />
+
+        <!-- Progress bar + percentage row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="@dimen/spacing_small">
+
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/progress_bar_height"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:progressTint="@color/progress_color"
+                android:progressBackgroundTint="@color/progress_track" />
+
+            <TextView
+                android:id="@+id/tv_pdf_progress"
+                android:layout_width="36dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_small"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_size_small"
+                android:gravity="end"
+                android:text="0%" />
+        </LinearLayout>
+
+        <!-- Delete button -->
+        <Button
+            android:id="@+id/btn_delete"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="@dimen/spacing_tiny"
+            android:text="@string/action_delete"
+            android:textColor="@color/error_red"
+            android:minHeight="@dimen/touch_target_min" />
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
+\n================================================================================\nFILE: app\src\main\res\menu\menu_main.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/action_settings"
+        android:icon="@android:drawable/ic_menu_preferences"
+        app:showAsAction="never" />
+</menu>
+\n================================================================================\nFILE: app\src\main\res\mipmap-anydpi\ic_launcher.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M0,0h108v108h-108z" />
+        
+    <group android:scaleX="3.375" android:scaleY="3.375" android:translateX="13.5" android:translateY="13.5">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M18,2H6c-1.1,0 -2,0.9 -2,2v16c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM6,4h5v8l-2.5,-1.5L6,12V4z"/>
+    </group>
+</vector>
+\n================================================================================\nFILE: app\src\main\res\mipmap-anydpi\ic_launcher_round.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M0,0h108v108h-108z" />
+        
+    <group android:scaleX="3.375" android:scaleY="3.375" android:translateX="13.5" android:translateY="13.5">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M18,2H6c-1.1,0 -2,0.9 -2,2v16c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2V4c0,-1.1 -0.9,-2 -2,-2zM6,4h5v8l-2.5,-1.5L6,12V4z"/>
+    </group>
+</vector>
+\n================================================================================\nFILE: app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+\n================================================================================\nFILE: app\src\main\res\mipmap-anydpi-v26\ic_launcher_round.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+\n================================================================================\nFILE: app\src\main\res\values\colors.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary brand – calm green, appropriate for Islamic reading content -->
+    <color name="primary">#2E7D32</color>
+    <color name="primary_dark">#1B5E20</color>
+    <color name="primary_light">#A5D6A7</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- Surfaces -->
+    <color name="background">#F5F5F0</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F1F8E9</color>
+
+
+
+    <!-- Text -->
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#555555</color>
+    <color name="text_hint">#888888</color>
+    <color name="error_red">#D32F2F</color>
+
+    <!-- Progress bar fill -->
+    <color name="progress_color">#2E7D32</color>
+    <color name="progress_track">#C8E6C9</color>
+
+    <!-- Status bar -->
+    <color name="status_bar">#1B5E20</color>
+
+    <!-- Divider -->
+    <color name="divider">#E0E0E0</color>
+</resources>
+\n================================================================================\nFILE: app\src\main\res\values\dimens.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spacing scale -->
+    <dimen name="spacing_tiny">4dp</dimen>
+    <dimen name="spacing_small">8dp</dimen>
+    <dimen name="spacing_medium">16dp</dimen>
+    <dimen name="spacing_large">24dp</dimen>
+    <dimen name="spacing_xlarge">32dp</dimen>
+
+    <!-- Card appearance -->
+    <dimen name="card_corner_radius">12dp</dimen>
+    <dimen name="card_elevation">3dp</dimen>
+
+    <!-- Component sizes -->
+    <dimen name="section_button_height">56dp</dimen>
+    <dimen name="progress_bar_height">8dp</dimen>
+    <dimen name="fab_size">56dp</dimen>
+    <dimen name="touch_target_min">48dp</dimen>
+
+    <!-- Typography -->
+    <dimen name="text_size_headline">22sp</dimen>
+    <dimen name="text_size_title">18sp</dimen>
+    <dimen name="text_size_body">16sp</dimen>
+    <dimen name="text_size_caption">14sp</dimen>
+    <dimen name="text_size_small">12sp</dimen>
+</resources>
+\n================================================================================\nFILE: app\src\main\res\values\strings.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Muntakhab Ahadith</string>
+
+    <!-- Section titles -->
+    <string name="section_kalimah">Kalimah Tayyibah</string>
+    <string name="section_salah">Salah</string>
+    <string name="section_ilm_zikr">Ilm and Zikr</string>
+    <string name="section_ikram">Ikram-e-Muslim</string>
+    <string name="section_ikhlas">Ikhlas-e-Niyyat</string>
+    <string name="section_dawat">Dawat wa Tabligh</string>
+
+    <!-- Home screen labels -->
+    <!-- Home screen labels -->
+    <string name="title_your_progress">Your Progress</string>
+    <string name="title_six_qualities">Six Qualities</string>
+    <string name="title_pdf_library">PDF Library</string>
+    <string name="page_label">Page %1$d</string>
+
+    <string name="btn_pdf_library">PDF Library</string>
+
+    <!-- Reader screen -->
+    <string name="loading_pdf">Loading…</string>
+    <string name="last_seen_saved">Last seen position saved.</string>
+    <string name="btn_save_last_seen">Save Last Seen</string>
+    <string name="btn_start_beginning">Start from Beginning</string>
+    <!-- Args: 1=absolutePage, 2=totalPages, 3=sectionPage, 4=sectionTotal, 5=percent -->
+    <string name="page_indicator">Page %1$d of %2$d\nSection: Page %3$d of %4$d (%5$d%%)</string>
+    <string name="page_indicator_simple">%1$s (Page %2$d)</string>
+    <!-- Args: 1=page, 2=total -->
+    <string name="page_of">Page %1$d of %2$d</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_continue_title">Continue Reading?</string>
+    <!-- Arg: 1=page number (1-based) -->
+    <string name="dialog_continue_message">You were on page %1$d. Continue from there?</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_start_beginning">Start from Beginning</string>
+    <string name="dialog_delete_title">Delete PDF</string>
+    <!-- Arg: 1=PDF name -->
+    <string name="dialog_delete_message">Remove \"%1$s\" from your library?</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="dialog_reset_title">Reset Progress</string>
+    <string name="dialog_reset_all_message">This will reset reading progress for all six sections and the Continue Reading position. This cannot be undone.</string>
+    <string name="dialog_reset_imported_message">This will remove all imported PDFs from your library. Your original files will not be deleted. This cannot be undone.</string>
+    <string name="action_reset">Reset</string>
+
+    <!-- PDF Library -->
+    <string name="no_pdfs_added">No PDFs Added\n\nTap + to import a PDF from your device.</string>
+    <string name="add_pdf">Add PDF</string>
+    <!-- Arg: 1=page number (1-based) -->
+    <string name="last_seen_page">Last seen: Page %1$d</string>
+
+    <!-- Settings -->
+    <string name="title_settings">Settings</string>
+    <string name="title_about">About</string>
+    <!-- Arg: 1=version string -->
+    <string name="version_name">Version %1$s</string>
+    <string name="btn_reset_all_progress">Reset Muntakhab Ahadith Progress</string>
+    <string name="btn_reset_imported">Reset Imported PDF Library</string>
+    <string name="progress_reset_done">Progress reset successfully.</string>
+    <string name="imported_pdfs_cleared">Imported PDF library cleared.</string>
+
+    <!-- Error messages -->
+    <string name="error_invalid_section">Invalid section. Please go back and try again.</string>
+    <string name="error_pdf_title">Cannot Open PDF</string>
+    <!-- Arg: 1=error message -->
+    <string name="error_pdf_message">Error loading PDF: %1$s</string>
+    <string name="error_pdf_inaccessible">This PDF is no longer accessible. Please import it again.</string>
+    <string name="error_pdf_not_found">PDF record not found.</string>
+
+    <!-- Options menu -->
+    <string name="action_settings">Settings</string>
+
+    <!-- Accessibility content descriptions -->
+    <!-- Args: 1=section title, 2=percent -->
+    <string name="cd_section_progress">Reading progress for %1$s: %2$d percent</string>
+
+    <!-- Arg: 1=PDF name -->
+    <string name="cd_delete_pdf">Delete %1$s from library</string>
+</resources>
+\n================================================================================\nFILE: app\src\main\res\values\themes.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme -->
+    <style name="Theme.MuntakhabAhadith" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/primary_light</item>
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+
+
+
+    <!-- Section action buttons on the home screen -->
+    <style name="Widget.MuntakhabAhadith.SectionButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">@dimen/spacing_small</item>
+        <item name="android:layout_marginBottom">@dimen/spacing_small</item>
+        <item name="android:paddingTop">@dimen/spacing_medium</item>
+        <item name="android:paddingBottom">@dimen/spacing_medium</item>
+        <item name="android:textSize">@dimen/text_size_body</item>
+        <item name="backgroundTint">@color/primary</item>
+        <item name="android:textColor">@color/on_primary</item>
+    </style>
+
+
+
+</resources>
+\n================================================================================\nFILE: app\src\main\res\xml\backup_rules.xml\n================================================================================\n\n<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="database" path="muntakhab_ahadith.db" />
+    <include domain="database" path="muntakhab_ahadith.db-shm" />
+    <include domain="database" path="muntakhab_ahadith.db-wal" />
+    <include domain="sharedpref" path="." />
+    <!-- Do NOT backup the cache (it contains the extracted 28MB PDF) -->
+    <exclude domain="cache" path="." />
+</full-backup-content>
+\n================================================================================\nFILE: app\src\test\java\com\moazzam\muntakhabahadith\ProgressCalculatorTest.java\n================================================================================\n\npackage com.moazzam.muntakhabahadith;
+
+import com.moazzam.muntakhabahadith.data.model.Section;
+import com.moazzam.muntakhabahadith.utils.ProgressCalculator;
+import com.moazzam.muntakhabahadith.utils.SectionConfig;
+
+import org.junit.Test;
+
+import static org.junit.Assert.*;
+
+/**
+ * Unit tests for ProgressCalculator and SectionConfig.
+ * These run on the JVM (no Android runtime needed).
+ */
+public class ProgressCalculatorTest {
+
+    // Use a simple test section for most calculations
+    private final Section testSection = new Section("test", "Test", 100, 200);
+
+    // ─── calculateProgress ────────────────────────────────────────────────────────
+
+    @Test
+    public void progressAtStart_isZero() {
+        float progress = ProgressCalculator.calculateProgress(100, testSection);
+        assertEquals(0f, progress, 0.001f);
+    }
+
+    @Test
+    public void progressAtEnd_isOne() {
+        float progress = ProgressCalculator.calculateProgress(200, testSection);
+        assertEquals(1f, progress, 0.001f);
+    }
+
+    @Test
+    public void progressAtMidpoint_isHalf() {
+        float progress = ProgressCalculator.calculateProgress(150, testSection);
+        assertEquals(0.5f, progress, 0.001f);
+    }
+
+    @Test
+    public void progressBelowStart_isClampedToZero() {
+        float progress = ProgressCalculator.calculateProgress(50, testSection);
+        assertEquals(0f, progress, 0.001f);
+    }
+
+    @Test
+    public void progressAboveEnd_isClampedToOne() {
+        float progress = ProgressCalculator.calculateProgress(300, testSection);
+        assertEquals(1f, progress, 0.001f);
+    }
+
+    // ─── calculateProgressPercent ─────────────────────────────────────────────────
+
+    @Test
+    public void percentAtStart_isZero() {
+        assertEquals(0, ProgressCalculator.calculateProgressPercent(100, testSection));
+    }
+
+    @Test
+    public void percentAtEnd_is100() {
+        assertEquals(100, ProgressCalculator.calculateProgressPercent(200, testSection));
+    }
+
+    @Test
+    public void percentAtMidpoint_is50() {
+        assertEquals(50, ProgressCalculator.calculateProgressPercent(150, testSection));
+    }
+
+    @Test
+    public void percentBelowStart_isZero() {
+        assertEquals(0, ProgressCalculator.calculateProgressPercent(0, testSection));
+    }
+
+    @Test
+    public void percentAboveEnd_is100() {
+        assertEquals(100, ProgressCalculator.calculateProgressPercent(9999, testSection));
+    }
+
+    // ─── sectionRelativePage ──────────────────────────────────────────────────────
+
+    @Test
+    public void relativePageAtStart_isOne() {
+        assertEquals(1, ProgressCalculator.sectionRelativePage(100, testSection));
+    }
+
+    @Test
+    public void relativePageAtEnd_isSectionTotal() {
+        assertEquals(testSection.getPageCount(),
+            ProgressCalculator.sectionRelativePage(200, testSection));
+    }
+
+    @Test
+    public void relativePageBelowStart_isOne() {
+        assertEquals(1, ProgressCalculator.sectionRelativePage(0, testSection));
+    }
+
+    @Test
+    public void relativePageAboveEnd_isSectionTotal() {
+        assertEquals(testSection.getPageCount(),
+            ProgressCalculator.sectionRelativePage(9999, testSection));
+    }
+
+    // ─── SectionConfig ────────────────────────────────────────────────────────────
+
+    @Test
+    public void getSectionById_returnsCorrectSection() {
+        Section s = SectionConfig.getSectionById(SectionConfig.ID_SALAH);
+        assertNotNull(s);
+        assertEquals("Salah", s.getTitle());
+        assertEquals(SectionConfig.SALAH_START_PAGE, s.getPdfStartPage());
+        assertEquals(SectionConfig.SALAH_END_PAGE,   s.getPdfEndPage());
+    }
+
+    @Test
+    public void getSectionById_unknownId_returnsNull() {
+        assertNull(SectionConfig.getSectionById("nonexistent_id"));
+    }
+
+    @Test
+    public void allSections_haveNonZeroPageRanges() {
+        for (Section s : SectionConfig.ALL_SECTIONS) {
+            assertTrue("Section " + s.getId() + " has invalid range",
+                s.getPdfEndPage() > s.getPdfStartPage());
+        }
+    }
+
+    @Test
+    public void sectionPageRanges_areWithinPdfBounds() {
+        for (Section s : SectionConfig.ALL_SECTIONS) {
+            assertTrue("Start page out of bounds: " + s.getId(),
+                s.getPdfStartPage() >= 0);
+            assertTrue("End page out of bounds: " + s.getId(),
+                s.getPdfEndPage() < SectionConfig.TOTAL_PDF_PAGES);
+        }
+    }
+
+    @Test
+    public void clampToSection_belowStart_returnsStart() {
+        Section s = SectionConfig.KALIMAH;
+        assertEquals(s.getPdfStartPage(), SectionConfig.clampToSection(-5, s));
+    }
+
+    @Test
+    public void clampToSection_aboveEnd_returnsEnd() {
+        Section s = SectionConfig.KALIMAH;
+        assertEquals(s.getPdfEndPage(), SectionConfig.clampToSection(99999, s));
+    }
+
+    @Test
+    public void clampToSection_withinRange_returnsUnchanged() {
+        Section s = SectionConfig.KALIMAH;
+        int mid = (s.getPdfStartPage() + s.getPdfEndPage()) / 2;
+        assertEquals(mid, SectionConfig.clampToSection(mid, s));
+    }
+
+    @Test
+    public void clampToValidRange_negative_returnsZero() {
+        assertEquals(0, SectionConfig.clampToValidRange(-100));
+    }
+
+    @Test
+    public void clampToValidRange_tooLarge_returnsLastPage() {
+        assertEquals(SectionConfig.TOTAL_PDF_PAGES - 1,
+            SectionConfig.clampToValidRange(99999));
+    }
+
+    @Test
+    public void sectionCount_isSix() {
+        assertEquals(6, SectionConfig.ALL_SECTIONS.length);
+    }
+}
+\n================================================================================\nFILE: gradle\wrapper\gradle-wrapper.properties\n================================================================================\n\ndistributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.12-bin.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists

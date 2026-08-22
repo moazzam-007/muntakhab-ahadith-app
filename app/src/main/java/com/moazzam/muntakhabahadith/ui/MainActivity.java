@@ -43,12 +43,38 @@ public class MainActivity extends AppCompatActivity {
         repository = ReadingRepository.getInstance(this);
 
 
+        bindContinueReading();
         bindProgressSection();
         bindSectionButtons();
         bindPdfLibraryButton();
     }
 
 
+
+    // ─── Continue Reading ─────────────────────────────────────────────────────────
+
+    private void bindContinueReading() {
+        CardView cardContinue = findViewById(R.id.card_continue_reading);
+        TextView tvContinueSection = findViewById(R.id.tv_continue_section);
+        Button btnContinue = findViewById(R.id.btn_continue_reading);
+
+        repository.getLatestProgressLive().observe(this, latest -> {
+            if (latest != null) {
+                Section section = SectionConfig.getSectionById(latest.sectionId);
+                if (section != null) {
+                    cardContinue.setVisibility(View.VISIBLE);
+                    int sectionRelative = ProgressCalculator.sectionRelativePage(latest.currentPage, section);
+                    tvContinueSection.setText(getString(R.string.page_indicator_simple, section.getTitle(), sectionRelative));
+                    
+                    View.OnClickListener listener = v -> openSection(latest.sectionId);
+                    btnContinue.setOnClickListener(listener);
+                    cardContinue.setOnClickListener(listener);
+                    return;
+                }
+            }
+            cardContinue.setVisibility(View.GONE);
+        });
+    }
 
     // ─── Progress Section ─────────────────────────────────────────────────────────
 

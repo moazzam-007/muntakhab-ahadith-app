@@ -56,6 +56,8 @@ public class SectionReaderActivity extends AppCompatActivity {
     private RecyclerView    pdfRecyclerView;
 
     private int     currentPage = 0;
+    private int     targetPage  = -1;
+    private boolean isJumpSettled = false;
     private int     totalPages  = 0;
     private boolean pdfLoaded   = false;
 
@@ -114,9 +116,11 @@ public class SectionReaderActivity extends AppCompatActivity {
         // Start from beginning button
         Button btnStart = findViewById(R.id.btn_start_beginning);
         btnStart.setOnClickListener(v -> {
-            currentPage = section.getPdfStartPage();
-            if (pdfLoaded && pdfRecyclerView != null) {
-                pdfRecyclerView.scrollToPosition(currentPage);
+            targetPage = section.getPdfStartPage();
+            currentPage = targetPage;
+            isJumpSettled = false;
+            if (pdfLoaded) {
+                jumpToPageSafely(targetPage);
             }
         });
 
@@ -124,8 +128,11 @@ public class SectionReaderActivity extends AppCompatActivity {
         seekBarPage.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && pdfLoaded && pdfRecyclerView != null) {
-                    pdfRecyclerView.scrollToPosition(progress);
+                if (fromUser && pdfLoaded) {
+                    targetPage = section.getPdfStartPage() + progress;
+                    currentPage = targetPage;
+                    isJumpSettled = false;
+                    jumpToPageSafely(targetPage);
                 }
             }
             @Override
@@ -174,7 +181,9 @@ public class SectionReaderActivity extends AppCompatActivity {
     // ─── PDF Initialisation ───────────────────────────────────────────────────────
 
     private void initPdf(int startPage) {
-        currentPage = SectionConfig.clampToValidRange(startPage);
+        targetPage = SectionConfig.clampToSection(startPage, section);
+        currentPage = targetPage;
+        isJumpSettled = false;
 
         pdfRendererView.setStatusListener(new PdfRendererView.StatusCallBack() {
 
@@ -193,16 +202,12 @@ public class SectionReaderActivity extends AppCompatActivity {
                 pdfLoaded = true;
                 pdfRecyclerView = findRecyclerView(pdfRendererView);
                 if (pdfRecyclerView != null) {
-                    // Update seekbar max
-                    RecyclerView.Adapter<?> adapter = pdfRecyclerView.getAdapter();
-                    if (adapter != null) {
-                        seekBarPage.setMax(adapter.getItemCount() - 1);
-                    }
+                    // Update seekbar max to section length
+                    seekBarPage.setMax(section.getPageCount() - 1);
                 }
-                
-                // Fix: Use post to ensure the view has laid out before jumping
-                if (currentPage > 0 && pdfRecyclerView != null) {
-                    pdfRecyclerView.post(() -> pdfRecyclerView.scrollToPosition(currentPage));
+                // Jump safely using the library's method
+                if (targetPage >= 0) {
+                    jumpToPageSafely(targetPage);
                 }
             }
 
@@ -214,14 +219,36 @@ public class SectionReaderActivity extends AppCompatActivity {
 
             @Override
             public void onPageChanged(int page, int total) {
-                currentPage = page;
-                totalPages  = total;
-                if (seekBarPage.getMax() != total - 1) {
-                    seekBarPage.setMax(total - 1);
+                // Guard against scrolling outside the section boundaries ONLY after jump settles
+                if (isJumpSettled && (page < section.getPdfStartPage() || page > section.getPdfEndPage())) {
+                    int clamped = SectionConfig.clampToSection(page, section);
+                    targetPage = clamped;
+                    currentPage = clamped;
+                    isJumpSettled = false;
+                    jumpToPageSafely(clamped);
+                    return;
                 }
-                // Update seekbar without triggering onProgressChanged listener's scroll
-                seekBarPage.setProgress(page);
-                updatePageIndicator(page, total);
+
+                if (!isJumpSettled) {
+                    // Suppress early page-changed noise until we hit target
+                    if (page == targetPage || targetPage < 0) {
+                        isJumpSettled = true;
+                        currentPage = page;
+                    }
+                } else {
+                    currentPage = page;
+                }
+
+                if (isJumpSettled) {
+                    totalPages  = total;
+                    int expectedMax = section.getPageCount() - 1;
+                    if (seekBarPage.getMax() != expectedMax) {
+                        seekBarPage.setMax(expectedMax);
+                    }
+                    // Update seekbar without triggering onProgressChanged listener's scroll
+                    seekBarPage.setProgress(page - section.getPdfStartPage());
+                    updatePageIndicator(page, total);
+                }
             }
         });
 
@@ -260,8 +287,11 @@ public class SectionReaderActivity extends AppCompatActivity {
     // ─── Persistence ──────────────────────────────────────────────────────────────
 
     private void saveCurrentPosition() {
-        repository.savePosition(section.getId(), currentPage);
-        Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+        repository.savePosition(section.getId(), currentPage, () -> {
+            if (!isFinishing() && !isDestroyed()) {
+                Toast.makeText(this, R.string.last_seen_saved, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     // ─── Error Handling ───────────────────────────────────────────────────────────
@@ -306,6 +336,16 @@ public class SectionReaderActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdown();
+    }
+
+    private void jumpToPageSafely(int page) {
+        try {
+            if (pdfRendererView != null) {
+                pdfRendererView.jumpToPage(page);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("SectionReaderActivity", "Failed to jump to page", e);
+        }
     }
 
     private RecyclerView findRecyclerView(View view) {

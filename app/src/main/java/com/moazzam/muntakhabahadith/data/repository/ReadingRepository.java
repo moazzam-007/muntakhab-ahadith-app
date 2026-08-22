@@ -57,17 +57,28 @@ public class ReadingRepository {
      * Safe to call from the main thread (runs on background executor).
      */
     @MainThread
-    public Future<?> savePosition(String sectionId, int page) {
+    public Future<?> savePosition(String sectionId, int page, Runnable onSuccess) {
         return executor.submit(() -> {
             try {
                 long now = System.currentTimeMillis();
                 SectionProgress sp = new SectionProgress(sectionId, page, now);
                 db.sectionProgressDao().saveProgress(sp);
+                if (onSuccess != null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(onSuccess);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Error saving position for section: " + sectionId, e);
                 throw new RuntimeException("Database error saving position", e);
             }
         });
+    }
+
+    /**
+     * Overload for internal safety saves without a callback.
+     */
+    @MainThread
+    public Future<?> savePosition(String sectionId, int page) {
+        return savePosition(sectionId, page, null);
     }
 
     /**
@@ -83,6 +94,12 @@ public class ReadingRepository {
     @MainThread
     public LiveData<List<SectionProgress>> getAllProgressLive() {
         return db.sectionProgressDao().getAllProgressLive();
+    }
+
+    /** Observable single most recent section progress. Safe to observe from UI. */
+    @MainThread
+    public LiveData<SectionProgress> getLatestProgressLive() {
+        return db.sectionProgressDao().getLatestProgressLive();
     }
 
 
@@ -150,18 +167,29 @@ public class ReadingRepository {
      * Safe to call from the main thread.
      */
     @MainThread
-    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages) {
+    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages, Runnable onSuccess) {
         return executor.submit(() -> {
             try {
                 pdf.lastPage   = currentPage;
                 pdf.progress   = totalPages > 0 ? (float) (currentPage + 1) / totalPages : 0f;
                 pdf.updatedAt  = System.currentTimeMillis();
                 db.importedPdfDao().update(pdf);
+                if (onSuccess != null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(onSuccess);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Error saving imported PDF position", e);
                 throw new RuntimeException("Database error saving imported PDF position", e);
             }
         });
+    }
+
+    /**
+     * Overload for internal safety saves without a callback.
+     */
+    @MainThread
+    public Future<?> saveImportedPdfPosition(ImportedPdf pdf, int currentPage, int totalPages) {
+        return saveImportedPdfPosition(pdf, currentPage, totalPages, null);
     }
 
     /** Deletes an imported PDF record (does not delete the actual file). Safe from main thread. */

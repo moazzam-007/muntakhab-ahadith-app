@@ -36,6 +36,61 @@
 
 
             <!-- ══════════════════════════════════════════════════ -->
+            <!--   CONTINUE READING CARD                           -->
+            <!-- ══════════════════════════════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_continue_reading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="@dimen/spacing_medium"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/primary"
+                app:cardCornerRadius="@dimen/card_corner_radius"
+                app:cardElevation="@dimen/card_elevation">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="@dimen/spacing_medium">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/action_continue"
+                            android:textColor="@color/on_primary"
+                            android:textSize="@dimen/text_size_small"
+                            android:textStyle="bold"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.12" />
+                        <TextView
+                            android:id="@+id/tv_continue_section"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Section Name"
+                            android:textColor="@color/on_primary"
+                            android:textSize="@dimen/text_size_body" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_continue_reading"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/action_continue"
+                        android:textColor="@color/on_primary"
+                        app:rippleColor="@color/primary_light" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- ══════════════════════════════════════════════════ -->
             <!--   YOUR PROGRESS CARD                              -->
             <!-- ══════════════════════════════════════════════════ -->
             <androidx.cardview.widget.CardView
